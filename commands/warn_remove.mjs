@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { hasPermission } from '../utils/permissions.mjs';
 import fs from 'fs';
 import path from 'path';
 
