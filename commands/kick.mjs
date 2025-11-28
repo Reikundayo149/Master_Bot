@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { hasPermission } from '../utils/permissions.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -11,13 +12,22 @@ export default {
     const member = interaction.options.getMember('user');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
     if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', ephemeral: true });
-    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません (KickMembers)。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません (KickMembers)。', ephemeral: true });
     try {
       await member.kick(reason);
-      await interaction.reply({ content: `✅ ${member.user.tag} をキックしました。理由: ${reason}` });
+      const embed = new EmbedBuilder()
+        .setTitle('👢 ユーザーをキックしました')
+        .setDescription(`${member.user.tag}`)
+        .setThumbnail(member.user.displayAvatarURL())
+        .addFields(
+          { name: '🔰 実行者', value: interaction.user.tag, inline: true },
+          { name: '📌 理由', value: reason, inline: true },
+        )
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: 'ERROR: キックに失敗しました。', ephemeral: true });
+      await interaction.reply({ content: '❌ キックに失敗しました。', ephemeral: true });
     }
   },
 };

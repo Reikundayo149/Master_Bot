@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { hasPermission } from '../utils/permissions.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -11,14 +12,23 @@ export default {
     const target = interaction.options.getMember('user');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
     if (!target) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', ephemeral: true });
-    if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', ephemeral: true });
     try {
       await target.ban({ reason });
-      await interaction.reply({ content: `✅ ${target.user.tag} を BAN しました。
-理由: ${reason}` });
+      const embed = new EmbedBuilder()
+        .setTitle('⛔ ユーザーをBANしました')
+        .setDescription(`🔨 ${target.user.tag}`)
+        .setThumbnail(target.user.displayAvatarURL())
+        .addFields(
+          { name: '🔰 モデレーター', value: interaction.user.tag, inline: true },
+          { name: '📌 理由', value: reason, inline: true },
+          { name: '🆔 ユーザーID', value: target.id, inline: true },
+        )
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: 'ERROR: BAN に失敗しました。', ephemeral: true });
+      await interaction.reply({ content: '❌ BAN に失敗しました。', ephemeral: true });
     }
   },
 };

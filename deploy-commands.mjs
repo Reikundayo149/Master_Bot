@@ -19,10 +19,19 @@ const commands = [];
 const commandsPath = path.join(process.cwd(), 'commands');
 if (fs.existsSync(commandsPath)) {
   const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.mjs'));
+  console.log(`Found ${commandFiles.length} command file(s):`, commandFiles);
   for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
-    const { default: command } = await import(pathToFileURL(filePath).href);
-    if (command?.data?.toJSON) commands.push(command.data.toJSON());
+    try {
+      const { default: command } = await import(pathToFileURL(filePath).href);
+      if (command?.data?.toJSON) {
+        commands.push(command.data.toJSON());
+      } else {
+        console.warn(`Warning: ${file} does not export a command with data.toJSON()`);
+      }
+    } catch (err) {
+      console.error(`Failed to import ${file}:`, err);
+    }
   }
 }
 
@@ -31,6 +40,7 @@ const rest = new REST({ version: '10' }).setToken(token);
 (async () => {
   try {
     console.log('⚙️ コマンドを登録中...');
+    console.log(`Prepared ${commands.length} command(s) for registration:`, commands.map(c => c.name));
     if (guildId) {
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
       console.log('✅ ギルドコマンドを登録しました');

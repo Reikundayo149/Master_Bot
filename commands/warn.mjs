@@ -20,19 +20,31 @@ function saveWarns(data) {
 export default {
   data: new SlashCommandBuilder()
     .setName('warn')
-    .setDescription('ユーザーに警告を追加します')
+    .setDescription('ユーザーに警告を追加します（オプションでDM通知）')
     .addUserOption(opt => opt.setName('user').setDescription('対象ユーザー').setRequired(true))
     .addStringOption(opt => opt.setName('reason').setDescription('理由'))
+    .addBooleanOption(opt => opt.setName('dm').setDescription('警告をDMで送信するか'))
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
   async execute(interaction) {
     const member = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
-    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', ephemeral: true });
+    const dm = interaction.options.getBoolean('dm') || false;
+    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', ephemeral: true });
     const warns = loadWarns();
     const id = member.id;
     if (!warns[id]) warns[id] = [];
     warns[id].push({ moderator: interaction.user.id, reason, timestamp: new Date().toISOString() });
     saveWarns(warns);
-    await interaction.reply({ content: `✅ ${member.tag} に警告を追加しました。現在の警告数: ${warns[id].length}` });
+    let replyText = `✅ ${member.tag} に警告を追加しました。現在の警告数: ${warns[id].length}`;
+    if (dm) {
+      try {
+        await member.send(`あなたはサーバーで警告されました。理由: ${reason}`);
+        replyText += '\n📩 DMで通知しました。';
+      } catch (err) {
+        console.error('DM送信に失敗:', err);
+        replyText += '\n⚠️ DM送信に失敗しました。';
+      }
+    }
+    await interaction.reply({ content: replyText });
   },
 };

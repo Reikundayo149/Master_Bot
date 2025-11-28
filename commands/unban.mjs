@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { hasPermission } from '../utils/permissions.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -8,13 +9,20 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
   async execute(interaction) {
     const userId = interaction.options.getString('user_id');
-    if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', ephemeral: true });
     try {
-      await interaction.guild.members.unban(userId);
-      await interaction.reply({ content: `✅ ユーザーID ${userId} のBANを解除しました。` });
+      const user = await interaction.guild.members.unban(userId);
+      const embed = new EmbedBuilder()
+        .setTitle('✅ BAN 解除')
+        .setDescription(`🔓 ${userId}`)
+        .addFields(
+          { name: '🔰 実行者', value: interaction.user.tag, inline: true },
+        )
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: 'ERROR: UNBAN に失敗しました。IDを確認してください。', ephemeral: true });
+      await interaction.reply({ content: '❌ UNBAN に失敗しました。IDを確認してください。', ephemeral: true });
     }
   },
 };

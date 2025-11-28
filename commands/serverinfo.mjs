@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -6,6 +6,16 @@ export default {
     .setDescription('サーバーの基本情報を表示します'),
   async execute(interaction) {
     const g = interaction.guild;
-    await interaction.reply({ content: `**サーバー名:** ${g.name}\n**ID:** ${g.id}\n**メンバー数:** ${g.memberCount}\n**所有者ID:** ${g.ownerId}\n**作成日:** ${g.createdAt.toISOString()}` });
+    const embed = new EmbedBuilder()
+      .setTitle(`🌐 ${g.name}`)
+      .setThumbnail(g.iconURL())
+      .addFields(
+        { name: '🆔 サーバーID', value: g.id, inline: true },
+        { name: '👥 メンバー数', value: `${g.memberCount}`, inline: true },
+        { name: '👑 所有者ID', value: g.ownerId || '不明', inline: true },
+        { name: '📅 作成日', value: g.createdAt.toISOString(), inline: false },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
   },
 };

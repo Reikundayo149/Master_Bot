@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { hasPermission } from '../utils/permissions.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -13,14 +14,24 @@ export default {
     const minutes = interaction.options.getInteger('minutes');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
     if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', ephemeral: true });
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', ephemeral: true });
     const ms = minutes * 60 * 1000;
     try {
       await member.timeout(ms, reason);
-      await interaction.reply({ content: `✅ ${member.user.tag} を ${minutes} 分間タイムアウトしました。理由: ${reason}` });
+      const embed = new EmbedBuilder()
+        .setTitle('⏳ タイムアウトを適用')
+        .setDescription(`🛑 ${member.user.tag} を ${minutes} 分間タイムアウトしました`)
+        .setThumbnail(member.user.displayAvatarURL())
+        .addFields(
+          { name: '🔰 実行者', value: interaction.user.tag, inline: true },
+          { name: '⏱️ 秒数', value: `${minutes} 分`, inline: true },
+          { name: '📌 理由', value: reason, inline: false },
+        )
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: 'ERROR: タイムアウトに失敗しました。', ephemeral: true });
+      await interaction.reply({ content: '❌ タイムアウトに失敗しました。', ephemeral: true });
     }
   },
 };

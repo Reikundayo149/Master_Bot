@@ -27,7 +27,7 @@ export default {
   async execute(interaction) {
     const member = interaction.options.getUser('user');
     const index = interaction.options.getInteger('index');
-    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', ephemeral: true });
     const warns = loadWarns();
     const id = member.id;
     if (!warns[id] || warns[id].length === 0) return interaction.reply({ content: '警告が見つかりません。', ephemeral: true });
