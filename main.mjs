@@ -61,6 +61,47 @@ client.on('interactionCreate', async (interaction) => {
 	if (!interaction.isChatInputCommand()) return;
 	const command = client.commands.get(interaction.commandName);
 	if (!command) return;
+	// 安全な reply/followUp を動的にラップして注入する
+	const origReply = interaction.reply.bind(interaction);
+	const origFollowUp = interaction.followUp ? interaction.followUp.bind(interaction) : null;
+	interaction.reply = async (options) => {
+		try {
+			return await origReply(options);
+		} catch (err) {
+			// 既に deferred なら editReply を試す
+			try {
+				if (interaction.deferred) {
+					return await interaction.editReply(options);
+				}
+				if (interaction.replied && origFollowUp) {
+					return await origFollowUp(options);
+				}
+			} catch (err2) {
+				// ignore here and rethrow original
+			}
+			throw err;
+		}
+	};
+	if (origFollowUp) {
+		interaction.followUp = async (options) => {
+			try {
+				return await origFollowUp(options);
+			} catch (err) {
+				try {
+					if (interaction.replied) {
+						return await origFollowUp(options);
+					}
+					if (interaction.deferred) {
+						return await interaction.editReply(options);
+					}
+				} catch (err2) {
+					// ignore
+				}
+				throw err;
+			}
+		};
+	}
+
 	try {
 		await command.execute(interaction);
 	} catch (error) {
@@ -72,7 +113,6 @@ client.on('interactionCreate', async (interaction) => {
 				await interaction.reply({ content: 'エラーが発生しました。', flags: 64 });
 			}
 		} catch (err) {
-			// ここで Unknown interaction (10062) などが発生する場合があるため、フォールバックを試みる
 			try {
 				await interaction.followUp({ content: 'エラーが発生しました（返信できませんでした）。', flags: 64 });
 			} catch (err2) {
