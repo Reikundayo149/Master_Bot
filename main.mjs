@@ -65,10 +65,19 @@ client.on('interactionCreate', async (interaction) => {
 		await command.execute(interaction);
 	} catch (error) {
 		console.error('コマンド実行中のエラー:', error);
-		if (interaction.replied || interaction.deferred) {
-			await interaction.followUp({ content: 'エラーが発生しました。', ephemeral: true });
-		} else {
-			await interaction.reply({ content: 'エラーが発生しました。', ephemeral: true });
+		try {
+			if (interaction.replied || interaction.deferred) {
+				await interaction.followUp({ content: 'エラーが発生しました。', ephemeral: true });
+			} else {
+				await interaction.reply({ content: 'エラーが発生しました。', ephemeral: true });
+			}
+		} catch (err) {
+			// ここで Unknown interaction (10062) などが発生する場合があるため、フォールバックを試みる
+			try {
+				await interaction.followUp({ content: 'エラーが発生しました（返信できませんでした）。', ephemeral: true });
+			} catch (err2) {
+				console.error('返信フォールバックに失敗しました:', err2);
+			}
 		}
 	}
 });
