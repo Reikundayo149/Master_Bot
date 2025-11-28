@@ -9,7 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
   async execute(interaction) {
     const userId = interaction.options.getString('user_id');
-    if (!hasPermission(interaction, PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', flags: 64 });
     try {
       const user = await interaction.guild.members.unban(userId);
       const embed = new EmbedBuilder()
@@ -22,7 +22,7 @@ export default {
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ UNBAN に失敗しました。IDを確認してください。', ephemeral: true });
+      await interaction.reply({ content: '❌ UNBAN に失敗しました。IDを確認してください。', flags: 64 });
     }
   },
 };

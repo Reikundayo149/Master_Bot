@@ -13,8 +13,8 @@ export default {
     const member = interaction.options.getMember('user');
     const minutes = interaction.options.getInteger('minutes');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
-    if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', ephemeral: true });
-    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', ephemeral: true });
+    if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 });
+    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', flags: 64 });
     const ms = minutes * 60 * 1000;
     try {
       await member.timeout(ms, reason);
@@ -31,7 +31,7 @@ export default {
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ タイムアウトに失敗しました。', ephemeral: true });
+      await interaction.reply({ content: '❌ タイムアウトに失敗しました。', flags: 64 });
     }
   },
 };

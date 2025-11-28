@@ -25,6 +25,6 @@ export default {
     const isExtraAllowed = allowedExtra.includes(interaction.user.id);
     const visible = ALL_COMMANDS.filter(c => !c.admin || isAdmin || isExtraAllowed);
     const lines = visible.map(c => c.sig);
-    await interaction.reply({ content: `\`\`\`\n${lines.join('\n')}\n\`\`\``, ephemeral: true });
+    await interaction.reply({ content: `\`\`\`\n${lines.join('\n')}\n\`\`\``, flags: 64 });
   },
 };

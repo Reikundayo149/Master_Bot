@@ -30,7 +30,7 @@ export default {
     const member = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
     const dm = interaction.options.getBoolean('dm') || false;
-    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', flags: 64 });
     const warns = loadWarns();
     const id = member.id;
     if (!warns[id]) warns[id] = [];
@@ -48,14 +48,14 @@ export default {
     }
     try {
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: replyText, ephemeral: true });
+        await interaction.followUp({ content: replyText, flags: 64 });
       } else {
         await interaction.reply({ content: replyText });
       }
     } catch (err) {
       // Interaction may have been acknowledged elsewhere; attempt followUp as fallback.
       try {
-        await interaction.followUp({ content: replyText, ephemeral: true });
+        await interaction.followUp({ content: replyText, flags: 64 });
       } catch (err2) {
         console.error('返信に失敗しました:', err2);
       }

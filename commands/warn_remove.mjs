@@ -28,16 +28,16 @@ export default {
   async execute(interaction) {
     const member = interaction.options.getUser('user');
     const index = interaction.options.getInteger('index');
-    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', ephemeral: true });
+    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません。', flags: 64 });
     const warns = loadWarns();
     const id = member.id;
-    if (!warns[id] || warns[id].length === 0) return interaction.reply({ content: '警告が見つかりません。', ephemeral: true });
+    if (!warns[id] || warns[id].length === 0) return interaction.reply({ content: '警告が見つかりません。', flags: 64 });
     if (!index) {
       delete warns[id];
       saveWarns(warns);
       return interaction.reply({ content: `✅ ${member.tag} の警告をすべて削除しました。` });
     }
-    if (index < 1 || index > warns[id].length) return interaction.reply({ content: '無効なインデックスです。', ephemeral: true });
+    if (index < 1 || index > warns[id].length) return interaction.reply({ content: '無効なインデックスです。', flags: 64 });
     warns[id].splice(index - 1, 1);
     if (warns[id].length === 0) delete warns[id];
     saveWarns(warns);

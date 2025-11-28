@@ -9,15 +9,15 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
   async execute(interaction) {
     const amount = interaction.options.getInteger('amount');
-    if (amount <= 0 || amount > 100) return interaction.reply({ content: '1〜100の数を指定してください。', ephemeral: true });
-    if (!hasPermission(interaction, PermissionFlagsBits.ManageMessages)) return interaction.reply({ content: '権限がありません (ManageMessages)。', ephemeral: true });
+    if (amount <= 0 || amount > 100) return interaction.reply({ content: '1〜100の数を指定してください。', flags: 64 });
+    if (!hasPermission(interaction, PermissionFlagsBits.ManageMessages)) return interaction.reply({ content: '権限がありません (ManageMessages)。', flags: 64 });
     try {
       const fetched = await interaction.channel.messages.fetch({ limit: amount });
       await interaction.channel.bulkDelete(fetched, true);
-      await interaction.reply({ content: `✅ ${fetched.size} 件のメッセージを削除しました。`, ephemeral: true });
+      await interaction.reply({ content: `✅ ${fetched.size} 件のメッセージを削除しました。`, flags: 64 });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: 'ERROR: メッセージ削除に失敗しました。', ephemeral: true });
+      await interaction.reply({ content: 'ERROR: メッセージ削除に失敗しました。', flags: 64 });
     }
   },
 };

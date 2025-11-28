@@ -9,8 +9,8 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   async execute(interaction) {
     const member = interaction.options.getMember('user');
-    if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', ephemeral: true });
-    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', ephemeral: true });
+    if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 });
+    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', flags: 64 });
     try {
       await member.timeout(null);
       const embed = new EmbedBuilder()
@@ -22,7 +22,7 @@ export default {
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ タイムアウト解除に失敗しました。', ephemeral: true });
+      await interaction.reply({ content: '❌ タイムアウト解除に失敗しました。', flags: 64 });
     }
   },
 };

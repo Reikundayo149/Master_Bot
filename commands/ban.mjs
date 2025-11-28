@@ -11,8 +11,8 @@ export default {
   async execute(interaction) {
     const target = interaction.options.getMember('user');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
-    if (!target) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', ephemeral: true });
-    if (!hasPermission(interaction, PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', ephemeral: true });
+    if (!target) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 });
+    if (!hasPermission(interaction, PermissionFlagsBits.BanMembers)) return interaction.reply({ content: '権限がありません (BanMembers)。', flags: 64 });
     try {
       await target.ban({ reason });
       const embed = new EmbedBuilder()
@@ -28,7 +28,7 @@ export default {
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ BAN に失敗しました。', ephemeral: true });
+      await interaction.reply({ content: '❌ BAN に失敗しました。', flags: 64 });
     }
   },
 };
