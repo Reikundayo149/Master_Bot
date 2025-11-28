@@ -7,6 +7,9 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
+import { startReminders } from './utils/reminder.mjs';
+import { addAttendance, removeAttendance, getSchedule } from './utils/scheduleStore.mjs';
+import { updateNotificationEmbeds } from './utils/reminder.mjs';
 
 // .envファイルから環境変数を読み込み
 dotenv.config();
@@ -45,6 +48,13 @@ async function loadCommands() {
 client.once('ready', () => {
 	console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
 	console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
+	// Start background reminder service
+	try {
+		startReminders(client, { checkIntervalSeconds: 60 });
+		console.log('🔔 リマインダーサービスを開始しました。');
+	} catch (err) {
+		console.error('リマインダーサービス起動に失敗しました:', err);
+	}
 });
 
 // メッセージが送信されたときの処理（従来のテキストコマンド対応）
@@ -58,6 +68,35 @@ client.on('messageCreate', (message) => {
 
 // スラッシュコマンド（インタラクション）処理
 client.on('interactionCreate', async (interaction) => {
+	// Button interactions for schedule attendance
+	if (interaction.isButton && interaction.isButton()) {
+		const id = interaction.customId;
+		if (typeof id === 'string' && id.startsWith('sched:')) {
+			const parts = id.split(':');
+			const schedId = parts[1];
+			const action = parts[2];
+			try {
+				if (action === 'join') {
+					await addAttendance(schedId, interaction.user.id);
+					await interaction.reply({ content: '参加登録しました ✅', flags: 64 });
+				} else if (action === 'leave') {
+					await removeAttendance(schedId, interaction.user.id);
+					await interaction.reply({ content: '参加登録を取り消しました ✖️', flags: 64 });
+				}
+				// Update notification embeds to reflect new counts
+				try {
+					await updateNotificationEmbeds(client, schedId);
+				} catch (err) {
+					console.error('Failed to refresh notification embeds:', err);
+				}
+			} catch (err) {
+				console.error('Attendance button handler error:', err);
+				try { await interaction.reply({ content: '処理中にエラーが発生しました。', flags: 64 }); } catch {};
+			}
+			return;
+		}
+	}
+
 	if (!interaction.isChatInputCommand()) return;
 	const command = client.commands.get(interaction.commandName);
 	if (!command) return;
