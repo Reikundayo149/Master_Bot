@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { hasPermission } from '../utils/permissions.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -45,6 +46,10 @@ export default {
         replyText += '\n⚠️ DM送信に失敗しました。';
       }
     }
-    await interaction.reply({ content: replyText });
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: replyText, ephemeral: true });
+    } else {
+      await interaction.reply({ content: replyText });
+    }
   },
 };
