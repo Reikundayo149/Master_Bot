@@ -46,10 +46,19 @@ export default {
         replyText += '\n⚠️ DM送信に失敗しました。';
       }
     }
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: replyText, ephemeral: true });
-    } else {
-      await interaction.reply({ content: replyText });
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: replyText, ephemeral: true });
+      } else {
+        await interaction.reply({ content: replyText });
+      }
+    } catch (err) {
+      // Interaction may have been acknowledged elsewhere; attempt followUp as fallback.
+      try {
+        await interaction.followUp({ content: replyText, ephemeral: true });
+      } catch (err2) {
+        console.error('返信に失敗しました:', err2);
+      }
     }
   },
 };
