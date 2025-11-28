@@ -18,6 +18,9 @@ export default {
       .setName('list')
       .setDescription('スケジュール一覧を表示します'))
     .addSubcommand(sc => sc
+      .setName('panel')
+      .setDescription('管理パネルを表示します（モーダルでの作成が可能）'))
+    .addSubcommand(sc => sc
       .setName('delete')
       .setDescription('スケジュールを削除します（作成者または管理者のみ）')
       .addIntegerOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))),
@@ -61,6 +64,26 @@ export default {
       const chunk = lines.join('\n\n');
       embed.addFields([{ name: '一覧', value: chunk.slice(0, 1024) }]);
       await interaction.reply({ embeds: [embed], flags: 64 });
+      return;
+    }
+
+    if (sub === 'panel') {
+      // Post a management panel with a Create button that opens a modal.
+      const embed = new EmbedBuilder()
+        .setTitle('🛠️ スケジュール管理パネル')
+        .setDescription('「作成」ボタンでモーダルを開き、スケジュールを入力できます。')
+        .setColor(0x5865F2)
+        .setTimestamp();
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder } = await import('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('sched_panel:create').setLabel('作成 (モーダル)').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('sched_panel:list').setLabel('一覧を表示').setStyle(ButtonStyle.Secondary)
+      );
+      // channel select row
+      const chanRow = new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder().setCustomId('sched_panel:channel_select').setPlaceholder('通知チャンネルを選択（任意）')
+      );
+      await interaction.reply({ embeds: [embed], components: [chanRow, row], flags: 64 });
       return;
     }
 
