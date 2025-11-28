@@ -43,15 +43,15 @@ export default {
 
     // Moderation: show only if admin or explicitly allowed
     if (isAdmin || isExtraAllowed) {
-      const modLines = MOD_COMMANDS.map(c => `${c.emoji} **${c.sig}** — ${c.desc}\n例: \\`${c.example}\\``);
-      embed.addFields({ name: '🛡️ Moderation', value: modLines.join('\n\n') });
+      const modLines = MOD_COMMANDS.map(c => `${c.emoji} **${c.sig}** — ${c.desc}\n例: \`${c.example}\``);
+      embed.addFields([{ name: '🛡️ Moderation', value: modLines.join('\n\n') }]);
     } else {
       embed.addFields({ name: '🛡️ Moderation', value: 'このカテゴリのコマンドは管理者のみが表示できます。' });
     }
 
     // Utilities: always visible
-    const utilLines = UTIL_COMMANDS.map(c => `${c.emoji} **${c.sig}** — ${c.desc}\n例: \\`${c.example}\\``);
-    embed.addFields({ name: '🔧 Utilities', value: utilLines.join('\n\n') });
+    const utilLines = UTIL_COMMANDS.map(c => `${c.emoji} **${c.sig}** — ${c.desc}\n例: \`${c.example}\``);
+    embed.addFields([{ name: '🔧 Utilities', value: utilLines.join('\n\n') }]);
 
     // Footer with tips
     embed.setFooter({ text: '詳しい使い方は /help を参照。所有者はすべてのコマンドを表示できます。' });
