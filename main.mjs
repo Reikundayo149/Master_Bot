@@ -1,39 +1,76 @@
 // main.mjs - Discord Botのメインプログラム
 
 // 必要なライブラリを読み込み
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import dotenv from 'dotenv';
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { pathToFileURL } from 'url';
 
 // .envファイルから環境変数を読み込み
 dotenv.config();
 
 // Discord Botクライアントを作成
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,           // サーバー情報取得
-        GatewayIntentBits.GuildMessages,    // メッセージ取得
-        GatewayIntentBits.MessageContent,   // メッセージ内容取得
-        GatewayIntentBits.GuildMembers,     // メンバー情報取得
-    ],
+	intents: [
+		GatewayIntentBits.Guilds,            // サーバー情報取得
+		GatewayIntentBits.GuildMessages,     // メッセージ取得
+		GatewayIntentBits.MessageContent,    // メッセージ内容取得
+		GatewayIntentBits.GuildMembers,      // メンバー情報取得
+	],
 });
+
+client.commands = new Collection();
+
+// コマンドをロード
+async function loadCommands() {
+	const commandsPath = path.join(process.cwd(), 'commands');
+	if (!fs.existsSync(commandsPath)) return;
+	const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.mjs'));
+	for (const file of commandFiles) {
+		const filePath = path.join(commandsPath, file);
+		try {
+			const { default: command } = await import(pathToFileURL(filePath).href);
+			if (command?.data?.name && command?.execute) {
+				client.commands.set(command.data.name, command);
+			}
+		} catch (err) {
+			console.error(`コマンド読み込み中にエラー: ${file}`, err);
+		}
+	}
+}
 
 // Botが起動完了したときの処理
 client.once('ready', () => {
-    console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
-    console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
+	console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
+	console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
 });
 
-// メッセージが送信されたときの処理
+// メッセージが送信されたときの処理（従来のテキストコマンド対応）
 client.on('messageCreate', (message) => {
-    // Bot自身のメッセージは無視
-    if (message.author.bot) return;
-    
-    // 「ping」メッセージに反応
-    if (message.content.toLowerCase() === 'ping') {
-        message.reply('🏓 pong!');
-        console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
-    }
+	if (message.author.bot) return;
+	if (message.content.toLowerCase() === 'ping') {
+		message.reply('🏓 pong!');
+		console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
+	}
+});
+
+// スラッシュコマンド（インタラクション）処理
+client.on('interactionCreate', async (interaction) => {
+	if (!interaction.isChatInputCommand()) return;
+	const command = client.commands.get(interaction.commandName);
+	if (!command) return;
+	try {
+		await command.execute(interaction);
+	} catch (error) {
+		console.error('コマンド実行中のエラー:', error);
+		if (interaction.replied || interaction.deferred) {
+			await interaction.followUp({ content: 'エラーが発生しました。', ephemeral: true });
+		} else {
+			await interaction.reply({ content: 'エラーが発生しました。', ephemeral: true });
+		}
+	}
 });
 
 // エラーハンドリング
@@ -50,16 +87,19 @@ process.on('SIGINT', () => {
 
 // Discord にログイン
 if (!process.env.DISCORD_TOKEN) {
-    console.error('❌ DISCORD_TOKEN が .env ファイルに設定されていません！');
-    process.exit(1);
+	console.error('❌ DISCORD_TOKEN が環境変数に設定されていません！');
+	process.exit(1);
 }
 
-console.log('🔄 Discord に接続中...');
-client.login(process.env.DISCORD_TOKEN)
-    .catch(error => {
-        console.error('❌ ログインに失敗しました:', error);
-        process.exit(1);
-    });
+(async () => {
+	await loadCommands();
+	console.log('🔄 Discord に接続中...');
+	client.login(process.env.DISCORD_TOKEN)
+		.catch(error => {
+			console.error('❌ ログインに失敗しました:', error);
+			process.exit(1);
+		});
+})();
 
 // Express Webサーバーの設定（Render用）
 const app = express();
