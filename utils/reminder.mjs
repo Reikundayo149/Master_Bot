@@ -3,10 +3,20 @@ import { DateTime } from 'luxon';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 let _interval = null;
+let _retryTimeout = null;
+let _failureCount = 0;
+
+const DEFAULT_BACKOFF_START = 30; // seconds
+const DEFAULT_BACKOFF_MAX = 300; // seconds (5 minutes)
 
 export function startReminders(client, options = {}) {
   const checkInterval = options.checkIntervalSeconds || 60;
+  if (_retryTimeout) {
+    clearTimeout(_retryTimeout);
+    _retryTimeout = null;
+  }
   if (_interval) clearInterval(_interval);
+  _failureCount = 0;
   _interval = setInterval(async () => {
     try {
       const schedules = await listSchedules();
@@ -74,12 +84,46 @@ export function startReminders(client, options = {}) {
       }
     } catch (err) {
       console.error('Reminder loop error', err);
+      // On connection/login errors, back off and retry after exponential delay
+      tryHandleReminderFailure(client, options, err);
     }
   }, checkInterval * 1000);
 }
 
 export function stopReminders() {
   if (_interval) clearInterval(_interval);
+  if (_retryTimeout) clearTimeout(_retryTimeout);
+}
+
+function tryHandleReminderFailure(client, options, err) {
+  // If it's not a connection/login error, just log and continue (will retry next interval)
+  const isConnError = (err && (err.code === 'ELOGIN' || String(err).includes('Client with IP address') || String(err).includes('Cannot open server')));
+  if (!isConnError) return;
+
+  _failureCount = Math.min(20, _failureCount + 1);
+  const start = options.backoffStartSeconds || DEFAULT_BACKOFF_START;
+  const max = options.backoffMaxSeconds || DEFAULT_BACKOFF_MAX;
+  const backoff = Math.min(max, start * Math.pow(2, _failureCount - 1));
+
+  console.warn(`Reminder loop detected DB connection error. Pausing reminders for ${backoff} seconds (failure #${_failureCount}).`);
+
+  // stop the interval loop
+  if (_interval) {
+    clearInterval(_interval);
+    _interval = null;
+  }
+
+  // schedule a retry
+  if (_retryTimeout) clearTimeout(_retryTimeout);
+  _retryTimeout = setTimeout(() => {
+    console.log('Retrying reminder loop after backoff...');
+    _retryTimeout = null;
+    try {
+      startReminders(client, options);
+    } catch (e) {
+      console.error('Failed to restart reminder loop', e);
+    }
+  }, backoff * 1000);
 }
 
 export async function updateNotificationEmbeds(client, scheduleId) {
