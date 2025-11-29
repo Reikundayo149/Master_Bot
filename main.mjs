@@ -331,14 +331,19 @@ client.on('interactionCreate', async (interaction) => {
 
 				const created = await createSchedule({ name, datetime: parsed.iso, description, creatorId: interaction.user.id, guildId: interaction.guildId, channelId, reminders, location });
 				const { EmbedBuilder } = await import('discord.js');
+				if (!created) {
+					console.error('createSchedule returned no result', created);
+					try { await interaction.reply({ content: 'スケジュールの作成に失敗しました（内部エラー）。', flags: 64 }); } catch {};
+					return;
+				}
 				const embed = new EmbedBuilder()
 					.setTitle('✅ スケジュール作成（パネル）')
-					.setDescription(created.name)
+					.setDescription(String(created.name || ''))
 					.addFields(
-						{ name: 'ID', value: String(created.id), inline: true },
-						{ name: '日時', value: formatISOToTokyo(created.datetime) || created.datetime, inline: true },
-						{ name: '通知先', value: `<#${channelId}>`, inline: true },
-						{ name: '場所', value: created.location || '未指定', inline: true }
+						{ name: 'ID', value: String(created.id ?? ''), inline: true },
+						{ name: '日時', value: String(formatISOToTokyo(created.datetime) || created.datetime || ''), inline: true },
+						{ name: '通知先', value: `<#${String(channelId || '')}>`, inline: true },
+						{ name: '場所', value: String(created.location || '未指定'), inline: true }
 					)
 					.setColor(0x57F287)
 					.setTimestamp();
