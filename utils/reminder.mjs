@@ -41,7 +41,8 @@ export function startReminders(client, options = {}) {
                 .addFields(
                   { name: '日時', value: DateTime.fromISO(s.datetime, { zone: 'utc' }).setZone('Asia/Tokyo').toFormat("yyyy-LL-dd HH:mm '(JST)'") || s.datetime, inline: true },
                   { name: '参加数', value: String(attendees.length), inline: true },
-                  { name: 'リマインド', value: `${rem} 分前`, inline: true }
+                  { name: 'リマインド', value: `${rem} 分前`, inline: true },
+                  { name: '場所', value: s.location || '未指定', inline: true }
                 )
                 .setFooter({ text: '出欠ボタンで簡単に参加登録できます' })
                 .setColor(0xFAA61A)
@@ -102,7 +103,8 @@ export async function updateNotificationEmbeds(client, scheduleId) {
           .setDescription(`${s.description || '説明なし'}`)
           .addFields(
             { name: '日時', value: DateTime.fromISO(s.datetime, { zone: 'utc' }).setZone('Asia/Tokyo').toFormat("yyyy-LL-dd HH:mm '(JST)'") || s.datetime, inline: true },
-            { name: '参加数', value: String(attendees.length), inline: true }
+            { name: '参加数', value: String(attendees.length), inline: true },
+            { name: '場所', value: s.location || '未指定', inline: true }
           )
           .setFooter({ text: '出欠ボタンで簡単に参加登録できます' })
           .setColor(0xFAA61A)
@@ -114,5 +116,67 @@ export async function updateNotificationEmbeds(client, scheduleId) {
     }
   } catch (err) {
     console.error('updateNotificationEmbeds error', err);
+  }
+}
+
+export async function sendNotificationNow(client, scheduleId, rem = 0) {
+  try {
+    const ss = await import('./scheduleStore.mjs');
+    const { getSchedule, addNotificationMessage, markNotified } = ss;
+    const s = await getSchedule(scheduleId);
+    if (!s) return { ok: false, reason: 'not_found' };
+    if (!s.guildId) return { ok: false, reason: 'no_guild' };
+    const guild = client.guilds.cache.get(String(s.guildId));
+    if (!guild) return { ok: false, reason: 'guild_not_cached' };
+    let channel = null;
+    if (s.channelId) {
+      channel = await guild.channels.fetch(s.channelId).catch(() => null);
+    }
+    if (!channel) channel = guild.systemChannel;
+    if (!channel) {
+      channel = guild.channels.cache.find(c => c.isTextBased && c.permissionsFor && c.permissionsFor(client.user).has('SendMessages'));
+    }
+    if (!channel) return { ok: false, reason: 'no_channel' };
+
+    const attendees = s.attendees || [];
+    const mention = attendees.slice(0, 25).map(id => `<@${id}>`).join(' ');
+    const more = attendees.length > 25 ? `and ${attendees.length - 25} more` : '';
+    const embed = new (await import('discord.js')).EmbedBuilder()
+      .setTitle(`⏰ リマインダー: ${s.name}`)
+      .setDescription(`${s.description || '説明なし'}`)
+      .addFields(
+        { name: '日時', value: (await import('luxon')).DateTime.fromISO(s.datetime, { zone: 'utc' }).setZone('Asia/Tokyo').toFormat("yyyy-LL-dd HH:mm '(JST)'") || s.datetime, inline: true },
+        { name: '参加数', value: String(attendees.length), inline: true },
+        { name: 'リマインド', value: `${rem} 分前`, inline: true },
+        { name: '場所', value: s.location || '未指定', inline: true }
+      )
+      .setFooter({ text: '出欠ボタンで簡単に参加登録できます' })
+      .setColor(0xFAA61A)
+      .setTimestamp();
+
+    const ActionRowBuilder = (await import('discord.js')).ActionRowBuilder;
+    const ButtonBuilder = (await import('discord.js')).ButtonBuilder;
+    const ButtonStyle = (await import('discord.js')).ButtonStyle;
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`sched:${s.id}:join`).setLabel('参加する').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`sched:${s.id}:leave`).setLabel('不参加').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`sched:${s.id}:view`).setLabel('参加者を見る').setStyle(ButtonStyle.Primary)
+    );
+
+    const sent = await channel.send({ embeds: [embed], components: [row] });
+    try {
+      await addNotificationMessage(s.id, channel.id, sent.id);
+    } catch (err) {
+      console.error('Failed to record notification message', err);
+    }
+    try {
+      await markNotified(s.id, rem);
+    } catch (err) {
+      console.error('Failed to mark notified', err);
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('sendNotificationNow error', err);
+    return { ok: false, reason: 'error' };
   }
 }

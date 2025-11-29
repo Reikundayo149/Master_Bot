@@ -32,7 +32,7 @@ export async function getSchedule(id) {
   return db.schedules[String(id)] || null;
 }
 
-export async function createSchedule({ name, datetime, description, creatorId, guildId, reminders }) {
+export async function createSchedule({ name, datetime, description, creatorId, guildId, reminders, channelId, location }) {
   const db = await read();
   const id = db.nextId++;
   const obj = {
@@ -42,7 +42,8 @@ export async function createSchedule({ name, datetime, description, creatorId, g
     description: description || '',
     creatorId: String(creatorId),
     guildId: guildId ? String(guildId) : null,
-    channelId: null,
+    channelId: channelId ? String(channelId) : null,
+    location: location || '',
     attendees: [],
     reminders: Array.isArray(reminders) ? reminders : [60, 10], // minutes before
     notifiedReminders: []
@@ -67,6 +68,21 @@ export async function getNotificationMessages(scheduleId) {
   const s = db.schedules[String(scheduleId)];
   if (!s) return [];
   return s.notificationMessages || [];
+}
+
+export async function updateSchedule(scheduleId, updates) {
+  const db = await read();
+  const s = db.schedules[String(scheduleId)];
+  if (!s) return { ok: false, reason: 'not_found' };
+  // allow updates to name, datetime, description, channelId, reminders, location
+  if (updates.name !== undefined) s.name = updates.name;
+  if (updates.datetime !== undefined) s.datetime = updates.datetime;
+  if (updates.description !== undefined) s.description = updates.description;
+  if (updates.channelId !== undefined) s.channelId = updates.channelId ? String(updates.channelId) : null;
+  if (updates.reminders !== undefined) s.reminders = Array.isArray(updates.reminders) ? updates.reminders : s.reminders;
+  if (updates.location !== undefined) s.location = updates.location;
+  await write(db);
+  return { ok: true, schedule: s };
 }
 
 export async function deleteSchedule(id) {

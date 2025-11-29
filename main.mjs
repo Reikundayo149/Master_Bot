@@ -114,12 +114,14 @@ client.on('interactionCreate', async (interaction) => {
 				const descInput = new TextInputBuilder().setCustomId('description').setLabel('説明（任意）').setStyle(TextInputStyle.Paragraph).setRequired(false);
 				const remInput = new TextInputBuilder().setCustomId('reminders').setLabel('リマインド（カンマ区切り分: 60,10）').setStyle(TextInputStyle.Short).setRequired(false);
 				const channelInput = new TextInputBuilder().setCustomId('channel').setLabel('通知チャンネル（#channel 形式かID、省略可）').setStyle(TextInputStyle.Short).setRequired(false);
+				const locInput = new TextInputBuilder().setCustomId('location').setLabel('場所（任意）').setStyle(TextInputStyle.Short).setRequired(false);
 				modal.addComponents(
 					new ActionRowBuilder().addComponents(nameInput),
 					new ActionRowBuilder().addComponents(dateInput),
 					new ActionRowBuilder().addComponents(descInput),
 					new ActionRowBuilder().addComponents(remInput),
-					new ActionRowBuilder().addComponents(channelInput)
+					new ActionRowBuilder().addComponents(channelInput),
+					new ActionRowBuilder().addComponents(locInput)
 				);
 				try {
 					await interaction.showModal(modal);
@@ -143,8 +145,93 @@ client.on('interactionCreate', async (interaction) => {
 					return interaction.reply({ content: '一覧の取得に失敗しました。', flags: 64 });
 				}
 			}
+			// manage actions from schedule select
+			if (id.startsWith('sched_panel:manage:')) {
+				const parts = id.split(':');
+				const schedId = parts[2];
+				const action = parts[3];
+				try {
+					if (action === 'view') {
+						const s = await getSchedule(schedId);
+						if (!s) return interaction.reply({ content: 'スケジュールが見つかりません。', flags: 64 });
+						const attendees = s.attendees || [];
+						const text = attendees.length === 0 ? '参加者はいません。' : attendees.map(x => `<@${x}>`).join('\n');
+						return interaction.reply({ content: `参加者一覧 (ID ${s.id}):\n${text}`, flags: 64 });
+					}
+					if (action === 'edit') {
+						const s = await getSchedule(schedId);
+						if (!s) return interaction.reply({ content: 'スケジュールが見つかりません（編集）。', flags: 64 });
+						const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
+						const modal = new ModalBuilder().setCustomId(`sched_edit:${s.id}`).setTitle('スケジュール編集');
+						const nameInput = new TextInputBuilder().setCustomId('name').setLabel('イベント名').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder(s.name || '');
+						const dateInput = new TextInputBuilder().setCustomId('datetime').setLabel('日時（例: 2025-12-01 18:00）').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder((await import('./utils/datetime.mjs')).formatISOToTokyo(s.datetime) || '');
+						const descInput = new TextInputBuilder().setCustomId('description').setLabel('説明（任意）').setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder(s.description || '');
+						const remInput = new TextInputBuilder().setCustomId('reminders').setLabel('リマインド（カンマ区切り分）').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder((s.reminders || []).join(','));
+						const locInput = new TextInputBuilder().setCustomId('location').setLabel('場所').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder(s.location || '');
+						modal.addComponents(new ActionRowBuilder().addComponents(nameInput), new ActionRowBuilder().addComponents(dateInput), new ActionRowBuilder().addComponents(descInput), new ActionRowBuilder().addComponents(remInput), new ActionRowBuilder().addComponents(locInput));
+						try {
+							await interaction.showModal(modal);
+						} catch (err) {
+							console.error('Failed to show edit modal', err);
+							try { await interaction.reply({ content: '編集モーダルを開けませんでした。', flags: 64 }); } catch {};
+						}
+						return;
+					}
+					if (action === 'sendnow') {
+						const rem = 0;
+						const { sendNotificationNow } = await import('./utils/reminder.mjs');
+						const res = await sendNotificationNow(client, schedId, rem);
+						if (res.ok) return interaction.reply({ content: '通知を送信しました。', flags: 64 });
+						return interaction.reply({ content: `通知送信に失敗しました: ${res.reason || 'error'}`, flags: 64 });
+					}
+					if (action === 'delete') {
+						const s = await getSchedule(schedId);
+						if (!s) return interaction.reply({ content: 'スケジュールが見つかりません。', flags: 64 });
+						// permission: creator or manage guild
+						const isCreator = String(s.creatorId) === String(interaction.user.id);
+						const canManage = interaction.member?.permissions?.has?.('ManageGuild') || isCreator;
+						if (!canManage) return interaction.reply({ content: '削除権限がありません。', flags: 64 });
+						const { deleteSchedule } = await import('./utils/scheduleStore.mjs');
+						const ok = await deleteSchedule(schedId);
+						if (ok) return interaction.reply({ content: `ID ${schedId} のスケジュールを削除しました。`, flags: 64 });
+						return interaction.reply({ content: '削除に失敗しました。', flags: 64 });
+					}
+				} catch (err) {
+					console.error('Manage button handler error', err);
+					try { await interaction.reply({ content: '処理に失敗しました。', flags: 64 }); } catch {};
+				}
+				return;
+			}
+			// pagination button pressed
+			if (id.startsWith('sched_panel:page:')) {
+				try {
+					const parts = id.split(':');
+					const page = parseInt(parts[2], 10) || 0;
+					// build menu for given page
+					const all = await listSchedules();
+					const per = 25;
+					const start = page * per;
+					const slice = all.slice(start, start + per);
+					const { ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelSelectMenuBuilder } = await import('discord.js');
+					const select = new StringSelectMenuBuilder().setCustomId('sched_panel:schedule_select').setPlaceholder('既存スケジュールを選択して管理');
+					const options = slice.map(s => ({ label: `${s.name}`, description: `${formatISOToTokyo(s.datetime) || s.datetime}`, value: String(s.id) }));
+					if (options.length > 0) select.addOptions(...options);
+					const selRow = new ActionRowBuilder().addComponents(select);
+					const chanRow = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sched_panel:channel_select').setPlaceholder('通知チャンネルを選択（任意）'));
+					const navRow = new ActionRowBuilder();
+					const totalPages = Math.ceil(all.length / per) || 1;
+					const prevBtn = new ButtonBuilder().setCustomId(`sched_panel:page:${Math.max(0, page-1)}`).setLabel('Prev').setStyle(ButtonStyle.Secondary).setDisabled(page <= 0);
+					const nextBtn = new ButtonBuilder().setCustomId(`sched_panel:page:${Math.min(totalPages-1, page+1)}`).setLabel('Next').setStyle(ButtonStyle.Secondary).setDisabled(page >= totalPages-1);
+					navRow.addComponents(prevBtn, nextBtn);
+					await interaction.reply({ embeds: [new EmbedBuilder().setTitle('📅 ページ切替').setDescription(`ページ ${page+1} / ${totalPages}`)], components: [chanRow, selRow, navRow], flags: 64 });
+				} catch (err) {
+					console.error('Pagination handler error', err);
+					try { await interaction.reply({ content: 'ページ切替に失敗しました。', flags: 64 }); } catch {};
+				}
+				return;
+			}
+			}
 		}
-	}
 
 	// Channel select for panel
 	if (interaction.isAnySelectMenu && interaction.customId === 'sched_panel:channel_select') {
@@ -165,15 +252,47 @@ client.on('interactionCreate', async (interaction) => {
 		return;
 	}
 
+	// Schedule select from panel
+	if (interaction.isAnySelectMenu && interaction.customId === 'sched_panel:schedule_select') {
+		try {
+			const vals = interaction.values || [];
+			const id = vals[0];
+			if (!id) return interaction.reply({ content: '選択が無効です。', flags: 64 });
+			const s = await getSchedule(id);
+			if (!s) return interaction.reply({ content: 'スケジュールが見つかりませんでした。', flags: 64 });
+			const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
+			const embed = new EmbedBuilder()
+				.setTitle(`📌 スケジュール: ${s.name}`)
+				.setDescription(s.description || '説明なし')
+				.addFields(
+					{ name: 'ID', value: String(s.id), inline: true },
+					{ name: '日時', value: formatISOToTokyo(s.datetime) || s.datetime, inline: true },
+					{ name: '参加数', value: String((s.attendees || []).length), inline: true }
+				)
+				.setTimestamp();
+			const row = new ActionRowBuilder().addComponents(
+				new ButtonBuilder().setCustomId(`sched_panel:manage:${s.id}:view`).setLabel('参加者を見る').setStyle(ButtonStyle.Secondary),
+				new ButtonBuilder().setCustomId(`sched_panel:manage:${s.id}:edit`).setLabel('編集').setStyle(ButtonStyle.Primary),
+				new ButtonBuilder().setCustomId(`sched_panel:manage:${s.id}:sendnow`).setLabel('今すぐ通知').setStyle(ButtonStyle.Success),
+				new ButtonBuilder().setCustomId(`sched_panel:manage:${s.id}:delete`).setLabel('削除').setStyle(ButtonStyle.Danger)
+			);
+			return interaction.reply({ embeds: [embed], components: [row], flags: 64 });
+		} catch (err) {
+			console.error('Schedule select handler error', err);
+			return interaction.reply({ content: '処理に失敗しました。', flags: 64 });
+		}
+	}
+
 	// Modal submit handling
 	if (interaction.isModalSubmit && interaction.isModalSubmit()) {
-		if (interaction.customId === 'sched_panel:modal') {
+			if (interaction.customId === 'sched_panel:modal') {
 			try {
 				const name = interaction.fields.getTextInputValue('name');
 				const datetimeInput = interaction.fields.getTextInputValue('datetime');
 				const description = interaction.fields.getTextInputValue('description') || '';
 				const remindersRaw = interaction.fields.getTextInputValue('reminders') || '';
 				const channelField = interaction.fields.getTextInputValue('channel') || '';
+				const location = interaction.fields.getTextInputValue('location') || '';
 
 				const parsed = parseToISO(datetimeInput);
 				if (!parsed.ok) {
@@ -198,7 +317,7 @@ client.on('interactionCreate', async (interaction) => {
 					if (reminders.length === 0) reminders = undefined;
 				}
 
-				const created = await createSchedule({ name, datetime: parsed.iso, description, creatorId: interaction.user.id, guildId: interaction.guildId, channelId, reminders });
+				const created = await createSchedule({ name, datetime: parsed.iso, description, creatorId: interaction.user.id, guildId: interaction.guildId, channelId, reminders, location });
 				const { EmbedBuilder } = await import('discord.js');
 				const embed = new EmbedBuilder()
 					.setTitle('✅ スケジュール作成（パネル）')
@@ -206,7 +325,8 @@ client.on('interactionCreate', async (interaction) => {
 					.addFields(
 						{ name: 'ID', value: String(created.id), inline: true },
 						{ name: '日時', value: formatISOToTokyo(created.datetime) || created.datetime, inline: true },
-						{ name: '通知先', value: `<#${channelId}>`, inline: true }
+						{ name: '通知先', value: `<#${channelId}>`, inline: true },
+						{ name: '場所', value: created.location || '未指定', inline: true }
 					)
 					.setColor(0x57F287)
 					.setTimestamp();
@@ -219,7 +339,38 @@ client.on('interactionCreate', async (interaction) => {
 				try { await interaction.reply({ content: 'スケジュール作成中にエラーが発生しました。', flags: 64 }); } catch {};
 				return;
 			}
-		}
+			} else if (interaction.customId && interaction.customId.startsWith('sched_edit:')) {
+				// handle edit modal submit
+				try {
+					const schedId = interaction.customId.split(':')[1];
+					const name = interaction.fields.getTextInputValue('name');
+					const datetimeInput = interaction.fields.getTextInputValue('datetime');
+					const description = interaction.fields.getTextInputValue('description') || '';
+					const remindersRaw = interaction.fields.getTextInputValue('reminders') || '';
+					const location = interaction.fields.getTextInputValue('location') || '';
+
+					const parsed = parseToISO(datetimeInput);
+					if (!parsed.ok) return interaction.reply({ content: '日時を解析できませんでした。', flags: 64 });
+
+					let reminders = undefined;
+					if (remindersRaw && remindersRaw.trim()) {
+						reminders = remindersRaw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0);
+					}
+
+					const ss = await import('./utils/scheduleStore.mjs');
+					const res = await ss.updateSchedule(schedId, { name, datetime: parsed.iso, description, reminders, location });
+					if (!res.ok) return interaction.reply({ content: '更新に失敗しました。', flags: 64 });
+					// refresh notification embeds
+					try { await updateNotificationEmbeds(client, schedId); } catch (err) { console.error('Failed to refresh after edit', err); }
+					const { EmbedBuilder } = await import('discord.js');
+					const embed = new EmbedBuilder().setTitle('✏️ スケジュールを更新しました').setDescription(name).addFields({ name: 'ID', value: String(schedId), inline: true }, { name: '日時', value: formatISOToTokyo(parsed.iso) || parsed.iso, inline: true }, { name: '場所', value: location || '未指定', inline: true }).setTimestamp();
+					return interaction.reply({ embeds: [embed], flags: 64 });
+				} catch (err) {
+					console.error('Edit modal submit error', err);
+					try { await interaction.reply({ content: '編集の保存に失敗しました。', flags: 64 }); } catch {};
+					return;
+				}
+			}
 	}
 
 	if (!interaction.isChatInputCommand()) return;

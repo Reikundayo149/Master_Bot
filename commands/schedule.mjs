@@ -13,6 +13,7 @@ export default {
       .addStringOption(o => o.setName('name').setDescription('イベント名').setRequired(true))
       .addStringOption(o => o.setName('datetime').setDescription('日時（自由入力・例: 2025-12-01 18:00）').setRequired(true))
       .addStringOption(o => o.setName('description').setDescription('説明（任意）'))
+      .addStringOption(o => o.setName('location').setDescription('場所（任意）'))
       .addChannelOption(o => o.setName('channel').setDescription('通知先チャンネル（指定しない場合はサーバーのシステムチャンネル）')))
     .addSubcommand(sc => sc
       .setName('list')
@@ -32,19 +33,21 @@ export default {
       const name = interaction.options.getString('name', true);
       const datetimeInput = interaction.options.getString('datetime', true);
       const description = interaction.options.getString('description') || '';
+      const location = interaction.options.getString('location') || '';
       const parsed = parseToISO(datetimeInput);
       if (!parsed.ok) {
         return interaction.reply({ content: '日時を解析できませんでした。例: `2025-12-01 18:00` のように入力してください（東京時間）。', flags: 64 });
       }
       const channel = interaction.options.getChannel('channel');
-      const created = await createSchedule({ name, datetime: parsed.iso, description, creatorId: interaction.user.id, guildId: interaction.guildId, channelId: channel ? channel.id : null });
+      const created = await createSchedule({ name, datetime: parsed.iso, description, creatorId: interaction.user.id, guildId: interaction.guildId, channelId: channel ? channel.id : null, location });
       const embed = new EmbedBuilder()
         .setTitle('✅ スケジュール作成')
         .setDescription(`${created.name}`)
         .addFields(
           { name: 'ID', value: String(created.id), inline: true },
           { name: '日時', value: formatISOToTokyo(created.datetime) || created.datetime, inline: true },
-          { name: '作成者', value: `<@${created.creatorId}>`, inline: true }
+          { name: '作成者', value: `<@${created.creatorId}>`, inline: true },
+          { name: '場所', value: created.location || '未指定', inline: true }
         )
         .setColor(0x57F287)
         .setTimestamp();
@@ -74,7 +77,7 @@ export default {
         .setDescription('「作成」ボタンでモーダルを開き、スケジュールを入力できます。')
         .setColor(0x5865F2)
         .setTimestamp();
-      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder } = await import('discord.js');
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, StringSelectMenuBuilder } = await import('discord.js');
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('sched_panel:create').setLabel('作成 (モーダル)').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('sched_panel:list').setLabel('一覧を表示').setStyle(ButtonStyle.Secondary)
@@ -83,7 +86,23 @@ export default {
       const chanRow = new ActionRowBuilder().addComponents(
         new ChannelSelectMenuBuilder().setCustomId('sched_panel:channel_select').setPlaceholder('通知チャンネルを選択（任意）')
       );
-      await interaction.reply({ embeds: [embed], components: [chanRow, row], flags: 64 });
+      // schedule select menu (up to 25)
+      const allSchedules = await listSchedules();
+      const select = new StringSelectMenuBuilder().setCustomId('sched_panel:schedule_select').setPlaceholder('既存スケジュールを選択して管理');
+      const options = allSchedules.slice(0, 25).map(s => ({ label: `${s.name}`, description: `${formatISOToTokyo(s.datetime) || s.datetime}`, value: String(s.id) }));
+      if (options.length > 0) select.addOptions(...options);
+      const selRow = new ActionRowBuilder().addComponents(select);
+      const comps = options.length > 0 ? [chanRow, selRow, row] : [chanRow, row];
+      // add pagination if there are more than 25 schedules
+      if (allSchedules.length > 25) {
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
+        const pageRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('sched_panel:page:0').setLabel('Prev').setStyle(ButtonStyle.Secondary).setDisabled(true),
+          new ButtonBuilder().setCustomId('sched_panel:page:1').setLabel('Next').setStyle(ButtonStyle.Secondary).setDisabled(false)
+        );
+        comps.push(pageRow);
+      }
+      await interaction.reply({ embeds: [embed], components: comps, flags: 64 });
       return;
     }
 
