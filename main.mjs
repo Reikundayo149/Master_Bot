@@ -47,7 +47,10 @@ async function loadCommands() {
 }
 
 // Botが起動完了したときの処理
-client.once('ready', () => {
+let __clientReadyHandled = false;
+function handleClientReady() {
+	if (__clientReadyHandled) return;
+	__clientReadyHandled = true;
 	console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
 	console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
 	// Start background reminder service
@@ -57,7 +60,11 @@ client.once('ready', () => {
 	} catch (err) {
 		console.error('リマインダーサービス起動に失敗しました:', err);
 	}
-});
+}
+
+// 新しいイベント名 'clientReady' に対応しつつ、互換性のため 'ready' も受け付ける
+client.on('clientReady', handleClientReady);
+client.on('ready', handleClientReady);
 
 // メッセージが送信されたときの処理（従来のテキストコマンド対応）
 client.on('messageCreate', (message) => {
