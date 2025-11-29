@@ -120,14 +120,13 @@ client.on('interactionCreate', async (interaction) => {
 				const dateInput = new TextInputBuilder().setCustomId('datetime').setLabel('日時（例: 2025-12-01 18:00）').setStyle(TextInputStyle.Short).setRequired(true);
 				const descInput = new TextInputBuilder().setCustomId('description').setLabel('説明（任意）').setStyle(TextInputStyle.Paragraph).setRequired(false);
 				const remInput = new TextInputBuilder().setCustomId('reminders').setLabel('リマインド（カンマ区切り分: 60,10）').setStyle(TextInputStyle.Short).setRequired(false);
-				const channelInput = new TextInputBuilder().setCustomId('channel').setLabel('通知チャンネル（#channel 形式かID、省略可）').setStyle(TextInputStyle.Short).setRequired(false);
 				const locInput = new TextInputBuilder().setCustomId('location').setLabel('場所（任意）').setStyle(TextInputStyle.Short).setRequired(false);
+				// Discordのモーダルは最大5コンポーネントまで。channelはモーダル外で選択できるためここでは省略する
 				modal.addComponents(
 					new ActionRowBuilder().addComponents(nameInput),
 					new ActionRowBuilder().addComponents(dateInput),
 					new ActionRowBuilder().addComponents(descInput),
 					new ActionRowBuilder().addComponents(remInput),
-					new ActionRowBuilder().addComponents(channelInput),
 					new ActionRowBuilder().addComponents(locInput)
 				);
 				try {
