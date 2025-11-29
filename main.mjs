@@ -297,7 +297,13 @@ client.on('interactionCreate', async (interaction) => {
 				const datetimeInput = interaction.fields.getTextInputValue('datetime');
 				const description = interaction.fields.getTextInputValue('description') || '';
 				const remindersRaw = interaction.fields.getTextInputValue('reminders') || '';
-				const channelField = interaction.fields.getTextInputValue('channel') || '';
+				let channelField = '';
+				try {
+					channelField = interaction.fields.getTextInputValue('channel') || '';
+				} catch (e) {
+					// フィールドが存在しない場合は空文字で続行
+					channelField = '';
+				}
 				const location = interaction.fields.getTextInputValue('location') || '';
 
 				const parsed = parseToISO(datetimeInput);
@@ -429,13 +435,24 @@ client.on('interactionCreate', async (interaction) => {
 		console.error('コマンド実行中のエラー:', error);
 		try {
 			if (interaction.replied || interaction.deferred) {
-				await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 });
+				try {
+					await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 });
+				} catch (fuErr) {
+					// followUp が失敗した場合は editReply を試す
+					try { await interaction.editReply({ content: 'エラーが発生しました。' }); } catch {}
+				}
 			} else {
-				await interaction.reply({ content: 'エラーが発生しました。', flags: 64 });
+				try {
+					await interaction.reply({ content: 'エラーが発生しました。', flags: 64 });
+				} catch (rErr) {
+					// reply が失敗したらチャネル送信へフォールバック
+					try { await interaction.channel?.send?.('エラーが発生しました。'); } catch (chErr) { }
+				}
 			}
 		} catch (err) {
+			// 最終フォールバック：チャンネルへ送信
 			try {
-				await interaction.followUp({ content: 'エラーが発生しました（返信できませんでした）。', flags: 64 });
+				await interaction.channel?.send?.('エラーが発生しました（返信できませんでした）。');
 			} catch (err2) {
 				console.error('返信フォールバックに失敗しました:', err2);
 			}
