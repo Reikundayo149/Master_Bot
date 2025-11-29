@@ -3,6 +3,19 @@ import { createSchedule, listSchedules, getSchedule, deleteSchedule } from '../u
 import { parseToISO, formatISOToTokyo } from '../utils/datetime.mjs';
 import { hasPermission } from '../utils/permissions.mjs';
 
+// 安全な返信ラッパー: 既に reply/defer されている場合は followUp や editReply を試す
+async function safeReply(interaction, options) {
+  try {
+    if (interaction.replied || interaction.deferred) {
+      try { return await interaction.followUp(options); } catch (e) { try { return await interaction.editReply(options); } catch (e2) { /* ignore */ } }
+    }
+    return await interaction.reply(options);
+  } catch (err) {
+    // 最終フォールバック: チャネル送信
+    try { await interaction.channel?.send?.(options?.content || '応答に失敗しました'); } catch {}
+  }
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName('schedule')
@@ -36,7 +49,7 @@ export default {
       const location = interaction.options.getString('location') || '';
       const parsed = parseToISO(datetimeInput);
       if (!parsed.ok) {
-        return interaction.reply({ content: '日時を解析できませんでした。例: `2025-12-01 18:00` のように入力してください（東京時間）。', flags: 64 });
+        return await safeReply(interaction, { content: '日時を解析できませんでした。例: `2025-12-01 18:00` のように入力してください（東京時間）。', flags: 64 });
       }
       const channel = interaction.options.getChannel('channel');
       const created = await createSchedule({ name, datetime: parsed.iso, description, creatorId: interaction.user.id, guildId: interaction.guildId, channelId: channel ? channel.id : null, location });
@@ -51,13 +64,13 @@ export default {
         )
         .setColor(0x57F287)
         .setTimestamp();
-      await interaction.reply({ embeds: [embed], flags: 64 });
+      await safeReply(interaction, { embeds: [embed], flags: 64 });
       return;
     }
 
     if (sub === 'list') {
       const all = await listSchedules();
-      if (all.length === 0) return interaction.reply({ content: '登録されたスケジュールはありません。', flags: 64 });
+      if (all.length === 0) return await safeReply(interaction, { content: '登録されたスケジュールはありません。', flags: 64 });
       const embed = new EmbedBuilder()
         .setTitle('📅 スケジュール一覧')
         .setColor(0x5865F2)
@@ -66,7 +79,7 @@ export default {
       // Discord embed field value max length ~1024, so split if large
       const chunk = lines.join('\n\n');
       embed.addFields([{ name: '一覧', value: chunk.slice(0, 1024) }]);
-      await interaction.reply({ embeds: [embed], flags: 64 });
+      await safeReply(interaction, { embeds: [embed], flags: 64 });
       return;
     }
 
@@ -102,20 +115,20 @@ export default {
         );
         comps.push(pageRow);
       }
-      await interaction.reply({ embeds: [embed], components: comps, flags: 64 });
+      await safeReply(interaction, { embeds: [embed], components: comps, flags: 64 });
       return;
     }
 
     if (sub === 'delete') {
       const id = interaction.options.getInteger('id', true);
       const s = await getSchedule(id);
-      if (!s) return interaction.reply({ content: `ID ${id} のスケジュールは見つかりません。`, flags: 64 });
+      if (!s) return await safeReply(interaction, { content: `ID ${id} のスケジュールは見つかりません。`, flags: 64 });
       const isCreator = String(s.creatorId) === String(interaction.user.id);
       const canManage = hasPermission(interaction, PermissionFlagsBits.ManageGuild) || isCreator;
-      if (!canManage) return interaction.reply({ content: 'このスケジュールを削除する権限がありません（作成者かサーバー管理者のみ）。', flags: 64 });
+      if (!canManage) return await safeReply(interaction, { content: 'このスケジュールを削除する権限がありません（作成者かサーバー管理者のみ）。', flags: 64 });
       const ok = await deleteSchedule(id);
-      if (!ok) return interaction.reply({ content: '削除に失敗しました。もう一度試してください。', flags: 64 });
-      await interaction.reply({ content: `ID ${id} のスケジュールを削除しました。`, flags: 64 });
+      if (!ok) return await safeReply(interaction, { content: '削除に失敗しました。もう一度試してください。', flags: 64 });
+      await safeReply(interaction, { content: `ID ${id} のスケジュールを削除しました。`, flags: 64 });
       return;
     }
   }

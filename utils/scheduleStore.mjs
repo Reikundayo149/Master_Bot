@@ -1,4 +1,5 @@
 import { getPool } from './db.mjs';
+import sql from 'mssql';
 import { DateTime } from 'luxon';
 
 async function query(queryText, inputs = []) {
@@ -46,14 +47,14 @@ export async function createSchedule({ name, datetime, description, creatorId, g
   const dt = DateTime.fromISO(datetime, { zone: 'utc' }).toISO();
   const remindersStr = Array.isArray(reminders) ? reminders.join(',') : (reminders || '60,10');
   const res = await pool.request()
-    .input('guildId', 'NVarChar', guildId ?? '')
-    .input('channelId', 'NVarChar', channelId ?? null)
-    .input('name', 'NVarChar', name)
-    .input('description', 'NVarChar', description ?? null)
-    .input('datetime', 'DateTimeOffset', dt)
-    .input('creatorId', 'NVarChar', String(creatorId))
-    .input('location', 'NVarChar', location ?? null)
-    .input('reminders', 'NVarChar', remindersStr)
+    .input('guildId', sql.NVarChar, guildId ?? '')
+    .input('channelId', sql.NVarChar, channelId ?? null)
+    .input('name', sql.NVarChar, name)
+    .input('description', sql.NVarChar, description ?? null)
+    .input('datetime', sql.DateTimeOffset, dt)
+    .input('creatorId', sql.NVarChar, String(creatorId))
+    .input('location', sql.NVarChar, location ?? null)
+    .input('reminders', sql.NVarChar, remindersStr)
     .query(`INSERT INTO dbo.schedules (guild_id, channel_id, name, description, datetime_iso, creator_id, location, reminders)
             OUTPUT INSERTED.*
             VALUES (@guildId, @channelId, @name, @description, @datetime, @creatorId, @location, @reminders)`);
