@@ -40,9 +40,20 @@ CREATE TABLE dbo.notification_messages (
   schedule_id INT NOT NULL,
   channel_id NVARCHAR(64) NOT NULL,
   message_id NVARCHAR(128) NOT NULL,
-  reminder_offset_minutes INT NOT NULL,
+  reminder_offset_minutes INT NOT NULL DEFAULT 0,
   sent_at DATETIMEOFFSET DEFAULT SYSUTCDATETIME(),
   CONSTRAINT FK_notification_schedule FOREIGN KEY (schedule_id) REFERENCES dbo.schedules(id) ON DELETE CASCADE
+);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[notified_offsets]') AND type in (N'U'))
+BEGIN
+CREATE TABLE dbo.notified_offsets (
+  id INT IDENTITY(1,1) PRIMARY KEY,
+  schedule_id INT NOT NULL,
+  offset_minutes INT NOT NULL,
+  notified_at DATETIMEOFFSET DEFAULT SYSUTCDATETIME(),
+  CONSTRAINT FK_notified_schedule FOREIGN KEY (schedule_id) REFERENCES dbo.schedules(id) ON DELETE CASCADE
 );
 END
 `;
