@@ -35,12 +35,13 @@ export default {
     if (!index) {
       delete warns[id];
       saveWarns(warns);
-      return interaction.reply({ content: `✅ ${member.tag} の警告をすべて削除しました。` });
+      try { await interaction.reply({ content: `✅ ${member.tag} の警告をすべて削除しました。` }); } catch (e) {}
+      return;
     }
     if (index < 1 || index > warns[id].length) return interaction.reply({ content: '無効なインデックスです。', flags: 64 });
     warns[id].splice(index - 1, 1);
     if (warns[id].length === 0) delete warns[id];
     saveWarns(warns);
-    return interaction.reply({ content: `✅ ${member.tag} の警告（インデックス ${index}）を削除しました。` });
+    try { await interaction.reply({ content: `✅ ${member.tag} の警告（インデックス ${index}）を削除しました。` }); } catch (e) {}
   },
 };

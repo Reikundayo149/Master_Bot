@@ -9,15 +9,34 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
   async execute(interaction) {
     const amount = interaction.options.getInteger('amount');
-    if (amount <= 0 || amount > 100) return interaction.reply({ content: '1〜100の数を指定してください。', flags: 64 });
-    if (!hasPermission(interaction, PermissionFlagsBits.ManageMessages)) return interaction.reply({ content: '権限がありません (ManageMessages)。', flags: 64 });
+    if (amount <= 0 || amount > 100) {
+      try { await interaction.reply({ content: '1〜100の数を指定してください。', flags: 64 }); } catch {};
+      return;
+    }
+    if (!hasPermission(interaction, PermissionFlagsBits.ManageMessages)) {
+      try { await interaction.reply({ content: '権限がありません (ManageMessages)。', flags: 64 }); } catch {};
+      return;
+    }
+
+    // This command performs network / bulk operations; defer the reply.
+    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+
+    const safeSend = async (payload) => {
+      try {
+        if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
+        return await interaction.reply(payload);
+      } catch (err) {
+        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
+      }
+    };
+
     try {
       const fetched = await interaction.channel.messages.fetch({ limit: amount });
       await interaction.channel.bulkDelete(fetched, true);
-      await interaction.reply({ content: `✅ ${fetched.size} 件のメッセージを削除しました。`, flags: 64 });
+      await safeSend({ content: `✅ ${fetched.size} 件のメッセージを削除しました。`, flags: 64 });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: 'ERROR: メッセージ削除に失敗しました。', flags: 64 });
+      await safeSend({ content: 'ERROR: メッセージ削除に失敗しました。', flags: 64 });
     }
   },
 };

@@ -9,8 +9,25 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   async execute(interaction) {
     const member = interaction.options.getMember('user');
-    if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 });
-    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) return interaction.reply({ content: '権限がありません (ModerateMembers)。', flags: 64 });
+    if (!member) {
+      try { await interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 }); } catch {}
+      return;
+    }
+    if (!hasPermission(interaction, PermissionFlagsBits.ModerateMembers)) {
+      try { await interaction.reply({ content: '権限がありません (ModerateMembers)。', flags: 64 }); } catch {}
+      return;
+    }
+
+    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    const safeSend = async (payload) => {
+      try {
+        if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
+        return await interaction.reply(payload);
+      } catch (err) {
+        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
+      }
+    };
+
     try {
       await member.timeout(null);
       const embed = new EmbedBuilder()
@@ -19,10 +36,10 @@ export default {
         .setThumbnail(member.user.displayAvatarURL())
         .addFields({ name: '🔰 実行者', value: interaction.user.tag, inline: true })
         .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
+      await safeSend({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ タイムアウト解除に失敗しました。', flags: 64 });
+      await safeSend({ content: '❌ タイムアウト解除に失敗しました。', flags: 64 });
     }
   },
 };

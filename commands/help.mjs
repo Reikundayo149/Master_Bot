@@ -56,6 +56,10 @@ export default {
     // Footer with tips
     embed.setFooter({ text: '詳しい使い方は /help を参照。所有者はすべてのコマンドを表示できます。' });
 
-    await interaction.reply({ embeds: [embed], flags: 64 });
+    try {
+      await interaction.reply({ embeds: [embed], flags: 64 });
+    } catch (e) {
+      try { await interaction.followUp({ embeds: [embed], flags: 64 }); } catch (e2) { console.error('返信に失敗しました:', e2); }
+    }
   },
 };

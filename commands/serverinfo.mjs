@@ -16,6 +16,6 @@ export default {
         { name: '📅 作成日', value: g.createdAt.toISOString(), inline: false },
       )
       .setTimestamp();
-    await interaction.reply({ embeds: [embed] });
+      try { await interaction.reply({ embeds: [embed] }); } catch (e) { try { await interaction.followUp({ embeds: [embed] }); } catch (e2) { console.error('返信に失敗しました:', e2); } }
   },
 };

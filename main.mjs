@@ -96,6 +96,13 @@ client.on('interactionCreate', async (interaction) => {
         try {
             return await origReply(options);
         } catch (err) {
+            // If interaction is already expired/unknown, ignore instead of throwing.
+            try {
+                if (err && err.code === 10062) {
+                    console.warn('Unknown interaction when replying — ignored.');
+                    return null;
+                }
+            } catch (e) {}
             try {
                 if (interaction.deferred) {
                     return await interaction.editReply(options);
@@ -112,6 +119,13 @@ client.on('interactionCreate', async (interaction) => {
             try {
                 return await origFollowUp(options);
             } catch (err) {
+                // Ignore unknown interaction errors from followUp too
+                try {
+                    if (err && err.code === 10062) {
+                        console.warn('Unknown interaction when followUp — ignored.');
+                        return null;
+                    }
+                } catch (e) {}
                 try {
                     if (interaction.replied) return await origFollowUp(options);
                     if (interaction.deferred) return await interaction.editReply(options);
@@ -127,9 +141,21 @@ client.on('interactionCreate', async (interaction) => {
         console.error('コマンド実行中のエラー:', error);
         try {
             if (interaction.replied || interaction.deferred) {
-                try { await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 }); } catch { try { await interaction.editReply({ content: 'エラーが発生しました。' }); } catch {} }
+                try { await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 }); } catch (fuErr) {
+                    if (fuErr && fuErr.code === 10062) {
+                        console.warn('Unknown interaction when followUp on error — ignored.');
+                    } else {
+                        try { await interaction.editReply({ content: 'エラーが発生しました。' }); } catch {}
+                    }
+                }
             } else {
-                try { await interaction.reply({ content: 'エラーが発生しました。', flags: 64 }); } catch { try { await interaction.channel?.send?.('エラーが発生しました。'); } catch {} }
+                try { await interaction.reply({ content: 'エラーが発生しました。', flags: 64 }); } catch (rErr) {
+                    if (rErr && rErr.code === 10062) {
+                        console.warn('Unknown interaction when replying on error — ignored.');
+                    } else {
+                        try { await interaction.channel?.send?.('エラーが発生しました。'); } catch {}
+                    }
+                }
             }
         } catch (err) {
             try { await interaction.channel?.send?.('エラーが発生しました（返信できませんでした）。'); } catch (err2) { console.error('返信フォールバックに失敗しました:', err2); }

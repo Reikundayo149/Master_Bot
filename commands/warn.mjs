@@ -46,19 +46,21 @@ export default {
         replyText += '\n⚠️ DM送信に失敗しました。';
       }
     }
-    try {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: replyText, flags: 64 });
-      } else {
-        await interaction.reply({ content: replyText });
-      }
-    } catch (err) {
-      // Interaction may have been acknowledged elsewhere; attempt followUp as fallback.
+    // This command can do DM/file I/O; acknowledge early.
+    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    const safeSend = async (payload) => {
       try {
-        await interaction.followUp({ content: replyText, flags: 64 });
-      } catch (err2) {
-        console.error('返信に失敗しました:', err2);
+        if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
+        return await interaction.reply(payload);
+      } catch (err) {
+        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
       }
+    };
+
+    try {
+      await safeSend({ content: replyText, flags: 64 });
+    } catch (err) {
+      console.error('最終返信に失敗しました:', err);
     }
   },
 };

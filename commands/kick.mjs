@@ -11,8 +11,25 @@ export default {
   async execute(interaction) {
     const member = interaction.options.getMember('user');
     const reason = interaction.options.getString('reason') || '理由が指定されていません';
-    if (!member) return interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 });
-    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) return interaction.reply({ content: '権限がありません (KickMembers)。', flags: 64 });
+    if (!member) {
+      try { await interaction.reply({ content: 'サーバー内ユーザーを指定してください。', flags: 64 }); } catch {}
+      return;
+    }
+    if (!hasPermission(interaction, PermissionFlagsBits.KickMembers)) {
+      try { await interaction.reply({ content: '権限がありません (KickMembers)。', flags: 64 }); } catch {}
+      return;
+    }
+
+    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    const safeSend = async (payload) => {
+      try {
+        if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
+        return await interaction.reply(payload);
+      } catch (err) {
+        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
+      }
+    };
+
     try {
       await member.kick(reason);
       const embed = new EmbedBuilder()
@@ -24,10 +41,10 @@ export default {
           { name: '📌 理由', value: reason, inline: true },
         )
         .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
+      await safeSend({ embeds: [embed] });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ キックに失敗しました。', flags: 64 });
+      await safeSend({ content: '❌ キックに失敗しました。', flags: 64 });
     }
   },
 };
