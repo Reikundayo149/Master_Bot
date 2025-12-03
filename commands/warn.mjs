@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 import { hasPermission } from '../utils/permissions.mjs';
 import fs from 'fs';
 import path from 'path';
@@ -38,8 +38,20 @@ export default {
     saveWarns(warns);
     let replyText = `✅ ${member.tag} に警告を追加しました。現在の警告数: ${warns[id].length}`;
     if (dm) {
+      // Build a rich embed for the DM
+      const guildName = interaction.guild ? interaction.guild.name : 'このサーバー';
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('⚠️ サーバーから警告を受け取りました')
+        .setDescription(`**${guildName}** で警告が発行されました。`)
+        .addFields(
+          { name: '理由', value: reason || '指定なし', inline: false },
+          { name: '発行者', value: `${interaction.user.tag}`, inline: true },
+          { name: '現在の警告数', value: `${warns[id].length}`, inline: true },
+        )
+        .setColor(0xFFA500)
+        .setTimestamp(new Date());
       try {
-        await member.send(`あなたはサーバーで警告されました。理由: ${reason}`);
+        await member.send({ embeds: [dmEmbed] });
         replyText += '\n📩 DMで通知しました。';
       } catch (err) {
         console.error('DM送信に失敗:', err);
