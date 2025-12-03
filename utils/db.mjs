@@ -1,18 +1,6 @@
-import sql from 'mssql';
-import dotenv from 'dotenv';
-dotenv.config();
-
-const connStr = process.env.AZURE_SQL_CONNECTION;
-if (!connStr) {
-  throw new Error('AZURE_SQL_CONNECTION が環境変数に設定されていません');
-}
-
-let poolPromise = null;
+// `utils/db.mjs` removed — DB helper disabled as part of Azure cleanup.
 export function getPool() {
-  if (!poolPromise) {
-    poolPromise = sql.connect(connStr);
-  }
-  return poolPromise;
+  throw new Error('DB helper disabled: utils/db.mjs was removed as part of cleanup.');
 }
 
 export default getPool;
