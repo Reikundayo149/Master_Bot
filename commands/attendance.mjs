@@ -18,7 +18,7 @@ export default {
         try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
       }
     };
-    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
 
     try {
       const sched = await getSchedule(id);

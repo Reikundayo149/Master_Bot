@@ -23,7 +23,7 @@ export default {
       }
     };
 
-    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
 
     try {
       if (sub === 'create') {

@@ -20,7 +20,7 @@ export default {
       return;
     }
 
-    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
     const safeSend = async (payload) => {
       try {
         if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);

@@ -19,7 +19,7 @@ export default {
     }
 
     // This command performs network / bulk operations; defer the reply.
-    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
 
     const safeSend = async (payload) => {
       try {

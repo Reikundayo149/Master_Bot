@@ -23,7 +23,7 @@ export default {
     }
     const ms = minutes * 60 * 1000;
 
-    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+    try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
     const safeSend = async (payload) => {
       try {
         if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
