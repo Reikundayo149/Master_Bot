@@ -1,8 +1,109 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { createSchedule, listSchedules, getSchedule, deleteSchedule } from '../utils/scheduleStore.mjs';
 
 export default {
-  data: new SlashCommandBuilder().setName('schedule').setDescription('スケジュール機能（無効化）'),
+  data: new SlashCommandBuilder()
+    .setName('schedule')
+    .setDescription('スケジュール管理')
+    .addSubcommand(sub => sub.setName('create').setDescription('スケジュールを作成します')
+      .addStringOption(o => o.setName('title').setDescription('タイトル').setRequired(true))
+      .addStringOption(o => o.setName('datetime').setDescription('日時（ISO or YYYY-MM-DD HH:MM）').setRequired(true))
+      .addStringOption(o => o.setName('description').setDescription('詳細')))
+    .addSubcommand(sub => sub.setName('list').setDescription('このサーバーのスケジュール一覧を表示します'))
+    .addSubcommand(sub => sub.setName('view').setDescription('スケジュールを表示します').addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true)))
+    .addSubcommand(sub => sub.setName('delete').setDescription('スケジュールを削除します').addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))),
   async execute(interaction) {
-    try { await interaction.reply({ content: 'スケジュール機能は無効化されています。', ephemeral: true }); } catch (e) { /* ignore */ }
+    const sub = interaction.options.getSubcommand();
+    const safeSend = async (payload) => {
+      try {
+        if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
+        return await interaction.reply(payload);
+      } catch (err) {
+        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
+      }
+    };
+
+    try { await interaction.deferReply({ ephemeral: true }); } catch (e) {}
+
+    try {
+      if (sub === 'create') {
+        const title = interaction.options.getString('title');
+        const datetimeRaw = interaction.options.getString('datetime');
+        const desc = interaction.options.getString('description') || '';
+        // Try to parse datetime
+        let dt = new Date(datetimeRaw);
+        if (isNaN(dt.getTime())) {
+          // Try replace space with 'T'
+          dt = new Date(datetimeRaw.replace(' ', 'T'));
+        }
+        if (isNaN(dt.getTime())) {
+          await safeSend({ content: '無効な日時形式です。ISO または `YYYY-MM-DD HH:MM` の形式で指定してください。', flags: 64 });
+          return;
+        }
+        const schedule = await createSchedule({ guildId: interaction.guildId, title, datetime: dt.toISOString(), description: desc, creatorId: interaction.user.id });
+        const embed = new EmbedBuilder()
+          .setTitle('✅ スケジュールを作成しました')
+          .addFields(
+            { name: 'タイトル', value: schedule.title },
+            { name: '日時', value: new Date(schedule.datetime).toLocaleString() },
+            { name: 'ID', value: schedule.id },
+          )
+          .setTimestamp();
+        await safeSend({ embeds: [embed], flags: 64 });
+        return;
+      }
+
+      if (sub === 'list') {
+        const all = await listSchedules(interaction.guildId);
+        if (!all || all.length === 0) {
+          await safeSend({ content: 'このサーバーのスケジュールはありません。', flags: 64 });
+          return;
+        }
+          const lines = all.slice(0, 10).map(s => `• **${s.title}** — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`);
+        const embed = new EmbedBuilder().setTitle('📅 スケジュール一覧').setDescription(lines.join('\n'));
+        await safeSend({ embeds: [embed], flags: 64 });
+        return;
+      }
+
+      if (sub === 'view') {
+        const id = interaction.options.getString('id');
+        const s = await getSchedule(id);
+        if (!s || s.guildId !== interaction.guildId) {
+          await safeSend({ content: 'スケジュールが見つかりません。', flags: 64 });
+          return;
+        }
+        const embed = new EmbedBuilder()
+          .setTitle(s.title)
+          .setDescription(s.description || '説明なし')
+          .addFields(
+            { name: '日時', value: new Date(s.datetime).toLocaleString(), inline: true },
+            { name: '作成者ID', value: s.creatorId || '不明', inline: true },
+            { name: '参加者数', value: `${(s.attendees || []).length}`, inline: true },
+            { name: 'ID', value: s.id, inline: false },
+          )
+          .setTimestamp(new Date(s.createdAt || s.datetime));
+        await safeSend({ embeds: [embed], flags: 64 });
+        return;
+      }
+
+      if (sub === 'delete') {
+        const id = interaction.options.getString('id');
+        const s = await getSchedule(id);
+        if (!s || s.guildId !== interaction.guildId) {
+          await safeSend({ content: 'スケジュールが見つかりません。', flags: 64 });
+          return;
+        }
+        const ok = await deleteSchedule(id);
+        if (ok) {
+          await safeSend({ content: '✅ スケジュールを削除しました。', flags: 64 });
+        } else {
+          await safeSend({ content: '❌ スケジュールの削除に失敗しました。', flags: 64 });
+        }
+        return;
+      }
+    } catch (err) {
+      console.error('schedule command error:', err);
+      await safeSend({ content: 'コマンド実行中にエラーが発生しました。', flags: 64 });
+    }
   }
 };
