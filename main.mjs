@@ -15,39 +15,13 @@ dotenv.config();
 
 // Discord Botクライアントを作成
 const client = new Client({
-    try {
-        // Prefer to reply if nothing has been sent/Deferred yet
-        if (!interaction.replied && !interaction.deferred) {
-            try {
-                await interaction.reply({ content: 'エラーが発生しました。', flags: 64 });
-                return;
-            } catch (rErr) {
-                // fall through to other attempts
-                if (rErr && rErr.code === 10062) {
-                    console.warn('Unknown interaction when replying on error — ignored.');
-                }
-            }
-        }
-
-        // If deferred, try editReply
-        if (interaction.deferred) {
-            try { await interaction.editReply({ content: 'エラーが発生しました。' }); return; } catch (editErr) { /* continue */ }
-        }
-
-        // Try followUp as a last attempt for acknowledged interactions
-        try { await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 }); return; } catch (fuErr) {
-            if (fuErr && fuErr.code === 'InteractionNotReplied') {
-                // fallthrough to channel send
-            }
-        }
-
-        // Final fallback: send to channel
-        try { await interaction.channel?.send?.('エラーが発生しました。'); } catch (chErr) { console.error('返信フォールバックに失敗しました:', chErr); }
-    } catch (err) {
-        // If something unexpected happens, log it
-        console.error('エラー時の通知に失敗しました:', err);
-    }
-}
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+    ],
+});
 
 // Botが起動完了したときの処理
 let __clientReadyHandled = false;
@@ -62,7 +36,6 @@ function handleClientReady() {
 
 // 新しいイベント名 'clientReady' に対応しつつ、互換性のため 'ready' も受け付ける
 client.on('clientReady', handleClientReady);
-client.on('ready', handleClientReady);
 
 // メッセージが送信されたときの処理（従来のテキストコマンド対応）
 client.on('messageCreate', (message) => {

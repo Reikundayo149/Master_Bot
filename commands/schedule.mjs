@@ -20,7 +20,16 @@ export default {
         if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
         return await interaction.reply(payload);
       } catch (err) {
-        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
+        try { return await interaction.followUp(payload); } catch (e) {
+          console.error('followUp に失敗:', e);
+          // If followUp failed (e.g., InteractionNotReplied), try channel fallback
+          try {
+            const text = payload.content || (payload.embeds ? '（埋め込みメッセージ）' : 'メッセージ');
+            return await interaction.channel?.send?.(text);
+          } catch (chErr) {
+            console.error('チャネル送信にも失敗しました:', chErr);
+          }
+        }
       }
     };
 
