@@ -76,23 +76,28 @@ export default {
         const listText = (!all || all.length === 0) ? 'スケジュールは登録されていません。' : all.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
         const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
         const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
-        const select = new StringSelectMenuBuilder()
-          .setCustomId('sched:select')
-          .setPlaceholder('スケジュールを選択して編集／削除')
-          .setOptions(
-            ...(all && all.length ? all.slice(0, 25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [])
-          );
+        const options = (all && all.length) ? all.slice(0, 25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [];
+        let selectRow = null;
+        if (options.length > 0) {
+          const select = new StringSelectMenuBuilder()
+            .setCustomId('sched:select')
+            .setPlaceholder('スケジュールを選択して編集／削除')
+            .addOptions(...options);
+          selectRow = new ActionRowBuilder().addComponents(select);
+        }
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
         );
-        const selectRow = new ActionRowBuilder().addComponents(select);
         // Buttons for edit/delete (initially disabled until a selection is made)
         const editRow = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
           new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
         );
-        await safeSend({ embeds: [embed], components: [selectRow, row, editRow], flags: 64 });
+        const components = [];
+        if (selectRow) components.push(selectRow);
+        components.push(row, editRow);
+        await safeSend({ embeds: [embed], components, flags: 64 });
         return;
       }
 

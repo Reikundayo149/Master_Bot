@@ -141,8 +141,12 @@ client.on('interactionCreate', async (interaction) => {
                             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
                             const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
                             const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
-                            const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').setOptions(...(schedules && schedules.length ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : []));
-                            const selectRow = new ActionRowBuilder().addComponents(select);
+                            const selectOptions = (schedules && schedules.length) ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [];
+                            let selectRow = null;
+                            if (selectOptions.length > 0) {
+                                const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').addOptions(...selectOptions);
+                                selectRow = new ActionRowBuilder().addComponents(select);
+                            }
                             const row = new ActionRowBuilder().addComponents(
                                 new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
                                 new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
@@ -151,7 +155,7 @@ client.on('interactionCreate', async (interaction) => {
                                 new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
                                 new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
                             );
-                            try { await interaction.update({ embeds: [embed], components: [selectRow, row, editRow] }); } catch (updErr) { try { await interaction.reply({ content: '削除しましたが、パネル更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {} }
+                            try { await interaction.update({ embeds: [embed], components: (selectRow ? [selectRow, row, editRow] : [row, editRow]) }); } catch (updErr) { try { await interaction.reply({ content: '削除しましたが、パネル更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {} }
                         } catch (e) {
                             console.error('after-delete update failed:', e);
                         }
@@ -196,7 +200,12 @@ client.on('interactionCreate', async (interaction) => {
                     new ButtonBuilder().setCustomId(`sched:edit:${s.id}`).setLabel('編集').setStyle(ButtonStyle.Success),
                     new ButtonBuilder().setCustomId(`sched:delete:${s.id}`).setLabel('削除').setStyle(ButtonStyle.Danger),
                 );
-                try { await interaction.update({ embeds: [embed], components: [interaction.message.components[0], row, controlRow] }); } catch (e) {
+                try {
+                    const comps = [];
+                    if (interaction.message && Array.isArray(interaction.message.components) && interaction.message.components[0]) comps.push(interaction.message.components[0]);
+                    comps.push(row, controlRow);
+                    await interaction.update({ embeds: [embed], components: comps });
+                } catch (e) {
                     console.error('select update failed:', e);
                     try { await interaction.reply({ content: 'パネルの更新に失敗しました。', flags: 64 }); } catch (e2) {}
                 }
@@ -261,8 +270,12 @@ client.on('interactionCreate', async (interaction) => {
                     const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
                     const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
                     const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
-                    const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').setOptions(...(schedules && schedules.length ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : []));
-                    const selectRow = new ActionRowBuilder().addComponents(select);
+                            const selectOptions = (schedules && schedules.length) ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [];
+                            let selectRow = null;
+                            if (selectOptions.length > 0) {
+                                const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').addOptions(...selectOptions);
+                                selectRow = new ActionRowBuilder().addComponents(select);
+                            }
                     const row = new ActionRowBuilder().addComponents(
                         new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
                         new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
@@ -275,7 +288,12 @@ client.on('interactionCreate', async (interaction) => {
                     try {
                         const recent = await interaction.channel.messages.fetch({ limit: 50 });
                         const panelMsg = recent.find(m => m.embeds && m.embeds[0] && m.embeds[0].title === '🧭 スケジュール管理パネル');
-                        if (panelMsg) await panelMsg.edit({ embeds: [embed], components: [selectRow, row, editRow] });
+                        if (panelMsg) {
+                            const comps = [];
+                            if (selectRow) comps.push(selectRow);
+                            comps.push(row, editRow);
+                            await panelMsg.edit({ embeds: [embed], components: comps });
+                        }
                     } catch (e) { console.warn('panel refresh after edit failed:', e); }
                 } catch (e) { console.error('post-edit panel update failed:', e); }
 
