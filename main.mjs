@@ -1,7 +1,7 @@
 // main.mjs - Discord Botのメインプログラム
 
 // 必要なライブラリを読み込み
-import { Client, GatewayIntentBits, Collection } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import dotenv from 'dotenv';
 import express from 'express';
 import fs from 'fs';
@@ -70,19 +70,62 @@ client.on('messageCreate', (message) => {
 // スラッシュコマンド（インタラクション）処理
 
 client.on('interactionCreate', async (interaction) => {
-    // If the interaction is part of the removed schedule feature, reply briefly and stop.
+    // Handle schedule UI interactions (buttons / modals) before chat input commands
     try {
-        const cid = interaction.customId;
-        if (cid && typeof cid === 'string' && (cid.startsWith('sched') || cid.startsWith('sched_panel'))) {
-            try { await interaction.reply({ content: 'このサーバーではスケジュール機能は無効化されています。', flags: 64 }); } catch (e) {}
+        if (interaction.isButton && interaction.isButton()) {
+            const cid = interaction.customId;
+            if (cid && cid.startsWith('sched')) {
+                // Handle create button
+                if (cid === 'sched:create') {
+                    const modal = new ModalBuilder().setCustomId('sched:create:modal').setTitle('スケジュール作成');
+                    const titleInput = new TextInputBuilder().setCustomId('title').setLabel('タイトル').setStyle(TextInputStyle.Short).setRequired(true);
+                    const datetimeInput = new TextInputBuilder().setCustomId('datetime').setLabel('日時 (YYYY-MM-DD HH:MM or ISO)').setStyle(TextInputStyle.Short).setRequired(true);
+                    const descInput = new TextInputBuilder().setCustomId('description').setLabel('説明 (任意)').setStyle(TextInputStyle.Paragraph).setRequired(false);
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(titleInput),
+                        new ActionRowBuilder().addComponents(datetimeInput),
+                        new ActionRowBuilder().addComponents(descInput),
+                    );
+                    try { await interaction.showModal(modal); } catch (e) { console.error('modal show failed:', e); }
+                    return;
+                }
+                if (cid === 'sched:list') {
+                    // Let the command that created the panel handle reloading, but as a fallback reply ephemeral
+                    try { await interaction.reply({ content: '一覧を更新しました。パネルコマンドを再実行してください。', flags: 64 }); } catch (e) {}
+                    return;
+                }
+            }
+        }
+
+        if (interaction.isModalSubmit && interaction.customId && interaction.customId.startsWith('sched:create')) {
+            // Handle modal submit for schedule creation
+            try {
+                const title = interaction.fields.getTextInputValue('title');
+                const datetimeRaw = interaction.fields.getTextInputValue('datetime');
+                const description = interaction.fields.getTextInputValue('description') || '';
+                let dt = new Date(datetimeRaw);
+                if (isNaN(dt.getTime())) dt = new Date(datetimeRaw.replace(' ', 'T'));
+                if (isNaN(dt.getTime())) {
+                    try { await interaction.reply({ content: '無効な日時形式です。', flags: 64 }); } catch (e) {}
+                    return;
+                }
+                const { createSchedule } = await import('./utils/scheduleStore.mjs');
+                const schedule = await createSchedule({ guildId: interaction.guildId, title, datetime: dt.toISOString(), description, creatorId: interaction.user.id });
+                const { EmbedBuilder } = await import('discord.js');
+                const embed = new EmbedBuilder().setTitle('✅ スケジュールを作成しました').addFields(
+                    { name: 'タイトル', value: schedule.title },
+                    { name: '日時', value: new Date(schedule.datetime).toLocaleString() },
+                    { name: 'ID', value: schedule.id },
+                ).setTimestamp();
+                try { await interaction.reply({ embeds: [embed], flags: 64 }); } catch (e) { console.error('reply failed:', e); }
+            } catch (err) {
+                console.error('modal submit error:', err);
+                try { await interaction.reply({ content: 'スケジュール作成に失敗しました。', flags: 64 }); } catch (e) {}
+            }
             return;
         }
-        if (interaction.isModalSubmit && interaction.customId && (interaction.customId.startsWith('sched') || interaction.customId.startsWith('sched_edit'))) {
-            try { await interaction.reply({ content: 'このサーバーではスケジュール機能は無効化されています。', flags: 64 }); } catch (e) {}
-            return;
-        }
-    } catch (guardErr) {
-        // ignore
+    } catch (uiErr) {
+        console.error('schedule UI handler error:', uiErr);
     }
 
     // Only handle slash/chat commands here; other interaction types are not used by core bot.

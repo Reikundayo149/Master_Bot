@@ -10,6 +10,7 @@ export default {
       .addStringOption(o => o.setName('datetime').setDescription('日時（ISO or YYYY-MM-DD HH:MM）').setRequired(true))
       .addStringOption(o => o.setName('description').setDescription('詳細')))
     .addSubcommand(sub => sub.setName('list').setDescription('このサーバーのスケジュール一覧を表示します'))
+      .addSubcommand(sub => sub.setName('panel').setDescription('管理パネルを開きます（管理者向け）'))
     .addSubcommand(sub => sub.setName('view').setDescription('スケジュールを表示します').addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true)))
     .addSubcommand(sub => sub.setName('delete').setDescription('スケジュールを削除します').addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))),
   async execute(interaction) {
@@ -50,6 +51,20 @@ export default {
           )
           .setTimestamp();
         await safeSend({ embeds: [embed], flags: 64 });
+        return;
+      }
+
+      if (sub === 'panel') {
+        // Admin panel: show create button and list
+        const all = await listSchedules(interaction.guildId);
+        const listText = (!all || all.length === 0) ? 'スケジュールは登録されていません。' : all.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
+        const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
+        );
+        await safeSend({ embeds: [embed], components: [row], flags: 64 });
         return;
       }
 
