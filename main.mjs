@@ -15,32 +15,38 @@ dotenv.config();
 
 // Discord Botクライアントを作成
 const client = new Client({
-	intents: [
-		GatewayIntentBits.Guilds,            // サーバー情報取得
-		GatewayIntentBits.GuildMessages,     // メッセージ取得
-		GatewayIntentBits.MessageContent,    // メッセージ内容取得
-		GatewayIntentBits.GuildMembers,      // メンバー情報取得
-	],
-});
+    try {
+        // Prefer to reply if nothing has been sent/Deferred yet
+        if (!interaction.replied && !interaction.deferred) {
+            try {
+                await interaction.reply({ content: 'エラーが発生しました。', flags: 64 });
+                return;
+            } catch (rErr) {
+                // fall through to other attempts
+                if (rErr && rErr.code === 10062) {
+                    console.warn('Unknown interaction when replying on error — ignored.');
+                }
+            }
+        }
 
-client.commands = new Collection();
+        // If deferred, try editReply
+        if (interaction.deferred) {
+            try { await interaction.editReply({ content: 'エラーが発生しました。' }); return; } catch (editErr) { /* continue */ }
+        }
 
-// コマンドをロード
-async function loadCommands() {
-	const commandsPath = path.join(process.cwd(), 'commands');
-	if (!fs.existsSync(commandsPath)) return;
-	const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.mjs'));
-	for (const file of commandFiles) {
-		const filePath = path.join(commandsPath, file);
-		try {
-			const { default: command } = await import(pathToFileURL(filePath).href);
-			if (command?.data?.name && command?.execute) {
-				client.commands.set(command.data.name, command);
-			}
-		} catch (err) {
-			console.error(`コマンド読み込み中にエラー: ${file}`, err);
-		}
-	}
+        // Try followUp as a last attempt for acknowledged interactions
+        try { await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 }); return; } catch (fuErr) {
+            if (fuErr && fuErr.code === 'InteractionNotReplied') {
+                // fallthrough to channel send
+            }
+        }
+
+        // Final fallback: send to channel
+        try { await interaction.channel?.send?.('エラーが発生しました。'); } catch (chErr) { console.error('返信フォールバックに失敗しました:', chErr); }
+    } catch (err) {
+        // If something unexpected happens, log it
+        console.error('エラー時の通知に失敗しました:', err);
+    }
 }
 
 // Botが起動完了したときの処理
