@@ -31,11 +31,20 @@ export default {
         return await interaction.reply(payload);
       } catch (err) {
         console.error('safeSend reply/editReply failed:', err);
+        // Try to send the full payload to the channel (including embeds/components) as a fallback
+        try {
+          if (interaction.channel && typeof interaction.channel.send === 'function') {
+            return await interaction.channel.send(payload);
+          }
+        } catch (chErr) {
+          console.error('チャネル送信にも失敗しました (payload):', chErr);
+        }
+        // Final fallback: send a simple text indicating failure
         try {
           const text = payload.content || (payload.embeds ? '（埋め込みメッセージ）' : 'メッセージ');
           return await interaction.channel?.send?.(text);
-        } catch (chErr) {
-          console.error('チャネル送信にも失敗しました:', chErr);
+        } catch (chErr2) {
+          console.error('チャネル送信にも失敗しました (text):', chErr2);
         }
       }
     };

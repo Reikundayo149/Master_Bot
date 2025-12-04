@@ -66,7 +66,14 @@ export default {
         return await interaction.reply(payload);
       } catch (err) {
         console.error('safeSend reply/editReply failed:', err);
-        try { return await interaction.channel?.send?.(payload.content || (payload.embeds ? '（埋め込みメッセージ）' : 'メッセージ')); } catch (chErr) { console.error('チャネル送信にも失敗しました:', chErr); }
+        try {
+          if (interaction.channel && typeof interaction.channel.send === 'function') {
+            return await interaction.channel.send(payload);
+          }
+        } catch (chErr) {
+          console.error('チャネル送信にも失敗しました (payload):', chErr);
+        }
+        try { return await interaction.channel?.send?.(payload.content || (payload.embeds ? '（埋め込みメッセージ）' : 'メッセージ')); } catch (chErr) { console.error('チャネル送信にも失敗しました (text):', chErr); }
       }
     };
 
