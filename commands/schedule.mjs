@@ -7,14 +7,22 @@ export default {
     .setDescription('スケジュール管理')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setDMPermission(false)
-    .addSubcommand(sub => sub.setName('create').setDescription('スケジュールを作成します')
-      .addStringOption(o => o.setName('title').setDescription('タイトル').setRequired(true))
-      .addStringOption(o => o.setName('datetime').setDescription('日時（ISO or YYYY-MM-DD HH:MM）').setRequired(true))
-      .addStringOption(o => o.setName('description').setDescription('詳細')))
+    .addSubcommand(sub =>
+      sub.setName('create').setDescription('スケジュールを作成します')
+        .addStringOption(o => o.setName('title').setDescription('タイトル').setRequired(true))
+        .addStringOption(o => o.setName('datetime').setDescription('日時（ISO or YYYY-MM-DD HH:MM）').setRequired(true))
+        .addStringOption(o => o.setName('description').setDescription('詳細'))
+    )
     .addSubcommand(sub => sub.setName('list').setDescription('このサーバーのスケジュール一覧を表示します'))
-      .addSubcommand(sub => sub.setName('panel').setDescription('管理パネルを開きます（管理者向け）'))
-    .addSubcommand(sub => sub.setName('view').setDescription('スケジュールを表示します').addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true)))
-    .addSubcommand(sub => sub.setName('delete').setDescription('スケジュールを削除します').addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))),
+    .addSubcommand(sub => sub.setName('panel').setDescription('管理パネルを開きます（管理者向け）'))
+    .addSubcommand(sub =>
+      sub.setName('view').setDescription('スケジュールを表示します')
+        .addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))
+    )
+    .addSubcommand(sub =>
+      sub.setName('delete').setDescription('スケジュールを削除します')
+        .addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))
+    ),
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     const safeSend = async (payload) => {
@@ -119,8 +127,7 @@ export default {
           rows.push(` ${no} | ${short} | ${date} | ${title}`);
         });
         const footerNote = '\n※ テーブル中の ShortID は内部IDの先頭8文字です。詳細表示/削除は `/schedule view <ID>` `/schedule delete <ID>` で、ShortID でもマッチします。';
-        const embed = new EmbedBuilder().setTitle('📅 スケジュール一覧').setDescription('```
-' + rows.join('\n') + '```' + footerNote);
+        const embed = new EmbedBuilder().setTitle('📅 スケジュール一覧').setDescription('```\n' + rows.join('\n') + '\n```' + footerNote);
         await safeSend({ embeds: [embed], flags: 64 });
         return;
       }
