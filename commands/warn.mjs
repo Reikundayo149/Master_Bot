@@ -62,10 +62,11 @@ export default {
     try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
     const safeSend = async (payload) => {
       try {
-        if (interaction.deferred || interaction.replied) return await interaction.editReply(payload);
+        if (interaction.deferred) return await interaction.editReply(payload);
         return await interaction.reply(payload);
       } catch (err) {
-        try { return await interaction.followUp(payload); } catch (e) { console.error('返信に失敗しました:', e); }
+        console.error('safeSend reply/editReply failed:', err);
+        try { return await interaction.channel?.send?.(payload.content || (payload.embeds ? '（埋め込みメッセージ）' : 'メッセージ')); } catch (chErr) { console.error('チャネル送信にも失敗しました:', chErr); }
       }
     };
 

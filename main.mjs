@@ -139,9 +139,13 @@ client.on('interactionCreate', async (interaction) => {
     if (origFollowUp) {
         interaction.followUp = async (options) => {
             try {
+                // If the interaction has not been replied to or deferred, prefer sending a reply
+                if (!interaction.replied && !interaction.deferred) {
+                    return await origReply(options);
+                }
                 return await origFollowUp(options);
             } catch (err) {
-                // Ignore unknown interaction errors from followUp too
+                // Ignore unknown interaction errors from followUp
                 try {
                     if (err && err.code === 10062) {
                         console.warn('Unknown interaction when followUp — ignored.');
@@ -149,8 +153,8 @@ client.on('interactionCreate', async (interaction) => {
                     }
                 } catch (e) {}
                 try {
-                    if (interaction.replied) return await origFollowUp(options);
                     if (interaction.deferred) return await interaction.editReply(options);
+                    if (interaction.replied) return await origFollowUp(options);
                 } catch (err2) {}
                 throw err;
             }
@@ -161,26 +165,24 @@ client.on('interactionCreate', async (interaction) => {
         await command.execute(interaction);
     } catch (error) {
         console.error('コマンド実行中のエラー:', error);
+        // Robust fallback sequence: prefer editReply if deferred, origFollowUp if already replied,
+        // otherwise try origReply, then channel send as last resort.
         try {
-            if (interaction.replied || interaction.deferred) {
-                try { await interaction.followUp({ content: 'エラーが発生しました。', flags: 64 }); } catch (fuErr) {
-                    if (fuErr && fuErr.code === 10062) {
-                        console.warn('Unknown interaction when followUp on error — ignored.');
-                    } else {
-                        try { await interaction.editReply({ content: 'エラーが発生しました。' }); } catch {}
-                    }
-                }
-            } else {
-                try { await interaction.reply({ content: 'エラーが発生しました。', flags: 64 }); } catch (rErr) {
-                    if (rErr && rErr.code === 10062) {
-                        console.warn('Unknown interaction when replying on error — ignored.');
-                    } else {
-                        try { await interaction.channel?.send?.('エラーが発生しました。'); } catch {}
-                    }
-                }
+            if (interaction.deferred) {
+                try { await interaction.editReply({ content: 'エラーが発生しました。' }); return; } catch (e) { console.error('editReply failed:', e); }
             }
-        } catch (err) {
-            try { await interaction.channel?.send?.('エラーが発生しました（返信できませんでした）。'); } catch (err2) { console.error('返信フォールバックに失敗しました:', err2); }
+
+            if (interaction.replied && origFollowUp) {
+                try { await origFollowUp({ content: 'エラーが発生しました。', flags: 64 }); return; } catch (e) { console.error('origFollowUp failed:', e); }
+            }
+
+            // If not deferred/replied, try to reply normally
+            try { await origReply({ content: 'エラーが発生しました。', flags: 64 }); return; } catch (rErr) { console.error('origReply failed:', rErr); }
+
+            // As a last resort, post to the channel if available
+            try { await interaction.channel?.send?.('エラーが発生しました。'); } catch (chErr) { console.error('チャンネル送信にも失敗しました:', chErr); }
+        } catch (finalErr) {
+            console.error('エラー返信の全フォールバックに失敗しました:', finalErr);
         }
     }
 });
