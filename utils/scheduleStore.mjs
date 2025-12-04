@@ -45,7 +45,16 @@ export async function listSchedules(guildId) {
 
 export async function getSchedule(id) {
 	const all = await readAll();
-	return all.find(s => s.id === String(id)) || null;
+	const sid = String(id || '');
+	// Exact match first
+	let found = all.find(s => s.id === sid);
+	if (found) return found;
+	// Allow prefix match for short IDs (e.g., first 8 chars)
+	if (sid.length >= 3) {
+		found = all.find(s => s.id.startsWith(sid));
+		if (found) return found;
+	}
+	return null;
 }
 
 export async function createSchedule({ guildId, title, datetime, description, creatorId }) {

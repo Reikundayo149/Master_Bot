@@ -69,11 +69,142 @@ client.on('interactionCreate', async (interaction) => {
                     return;
                 }
                 if (cid === 'sched:list') {
-                    // Let the command that created the panel handle reloading, but as a fallback reply ephemeral
-                    try { await interaction.reply({ content: '一覧を更新しました。パネルコマンドを再実行してください。', flags: 64 }); } catch (e) {}
+                    // Try to update the original panel message in-place with the refreshed list
+                    try {
+                        const { listSchedules } = await import('./utils/scheduleStore.mjs');
+                        const schedules = await listSchedules(interaction.guildId);
+                        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = await import('discord.js');
+                        const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
+                        const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
+                            new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
+                        );
+                        // interaction.update edits the message that had the buttons
+                        try {
+                            await interaction.update({ embeds: [embed], components: [row] });
+                        } catch (updErr) {
+                            // If update fails (e.g., interaction expired), fallback to ephemeral reply
+                            console.warn('パネル更新に失敗しました、フォールバックします:', updErr);
+                            try { await interaction.reply({ content: '一覧の更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {}
+                        }
+                    } catch (e) {
+                        console.error('sched:list handler error:', e);
+                        try { await interaction.reply({ content: '一覧の取得中にエラーが発生しました。', flags: 64 }); } catch (r) {}
+                    }
+                    return;
+                }
+                // Edit button with id: sched:edit:<id>
+                if (cid.startsWith('sched:edit:')) {
+                    const parts = cid.split(':');
+                    const sid = parts[2];
+                    try {
+                        const { getSchedule } = await import('./utils/scheduleStore.mjs');
+                        const s = await getSchedule(sid);
+                        if (!s) {
+                            try { await interaction.reply({ content: 'スケジュールが見つかりません。', flags: 64 }); } catch (e) {}
+                            return;
+                        }
+                        // Show modal prefilled
+                        const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
+                        const modal = new ModalBuilder().setCustomId(`sched:edit:modal:${sid}`).setTitle('スケジュール編集');
+                        const titleInput = new TextInputBuilder().setCustomId('title').setLabel('タイトル').setStyle(TextInputStyle.Short).setRequired(true).setValue(s.title);
+                        const datetimeInput = new TextInputBuilder().setCustomId('datetime').setLabel('日時 (YYYY-MM-DD HH:MM or ISO)').setStyle(TextInputStyle.Short).setRequired(true).setValue(new Date(s.datetime).toISOString());
+                        const descInput = new TextInputBuilder().setCustomId('description').setLabel('説明 (任意)').setStyle(TextInputStyle.Paragraph).setRequired(false).setValue(s.description || '');
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(titleInput),
+                            new ActionRowBuilder().addComponents(datetimeInput),
+                            new ActionRowBuilder().addComponents(descInput),
+                        );
+                        try { await interaction.showModal(modal); } catch (e) { console.error('show edit modal failed:', e); try { await interaction.reply({ content: 'モーダルを開けませんでした。', flags: 64 }); } catch (e2) {} }
+                    } catch (e) {
+                        console.error('sched:edit handler error:', e);
+                        try { await interaction.reply({ content: '編集中にエラーが発生しました。', flags: 64 }); } catch (e2) {}
+                    }
+                    return;
+                }
+                // Delete button: sched:delete:<id>
+                if (cid.startsWith('sched:delete:')) {
+                    const parts = cid.split(':');
+                    const sid = parts[2];
+                    try {
+                        const { deleteSchedule } = await import('./utils/scheduleStore.mjs');
+                        const ok = await deleteSchedule(sid);
+                        if (!ok) {
+                            try { await interaction.reply({ content: 'スケジュールの削除に失敗しました。', flags: 64 }); } catch (e) {}
+                            return;
+                        }
+                        // Attempt to update the panel message in-place
+                        try {
+                            const { listSchedules, getSchedule } = await import('./utils/scheduleStore.mjs');
+                            const schedules = await listSchedules(interaction.guildId);
+                            const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
+                            const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
+                            const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
+                            const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').setOptions(...(schedules && schedules.length ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : []));
+                            const selectRow = new ActionRowBuilder().addComponents(select);
+                            const row = new ActionRowBuilder().addComponents(
+                                new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
+                                new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
+                            );
+                            const editRow = new ActionRowBuilder().addComponents(
+                                new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
+                                new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
+                            );
+                            try { await interaction.update({ embeds: [embed], components: [selectRow, row, editRow] }); } catch (updErr) { try { await interaction.reply({ content: '削除しましたが、パネル更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {} }
+                        } catch (e) {
+                            console.error('after-delete update failed:', e);
+                        }
+                        return;
+                    } catch (e) {
+                        console.error('sched:delete handler error:', e);
+                        try { await interaction.reply({ content: '削除中にエラーが発生しました。', flags: 64 }); } catch (e2) {}
+                    }
                     return;
                 }
             }
+        }
+
+        // Handle select menu selection from panel
+        if (interaction.isStringSelectMenu && interaction.customId === 'sched:select') {
+            try {
+                const sid = interaction.values && interaction.values[0];
+                if (!sid) {
+                    try { await interaction.reply({ content: '選択が無効です。', flags: 64 }); } catch (e) {}
+                    return;
+                }
+                const { getSchedule } = await import('./utils/scheduleStore.mjs');
+                const s = await getSchedule(sid);
+                if (!s) {
+                    try { await interaction.reply({ content: 'スケジュールが見つかりません。', flags: 64 }); } catch (e) {}
+                    return;
+                }
+                const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
+                const embed = new EmbedBuilder()
+                    .setTitle(s.title)
+                    .setDescription(s.description || '説明なし')
+                    .addFields(
+                        { name: '日時', value: new Date(s.datetime).toLocaleString(), inline: true },
+                        { name: '参加者数', value: `${(s.attendees || []).length}`, inline: true },
+                        { name: 'ID', value: s.id, inline: false },
+                    ).setTimestamp(new Date(s.createdAt || s.datetime));
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
+                );
+                const controlRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`sched:edit:${s.id}`).setLabel('編集').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`sched:delete:${s.id}`).setLabel('削除').setStyle(ButtonStyle.Danger),
+                );
+                try { await interaction.update({ embeds: [embed], components: [interaction.message.components[0], row, controlRow] }); } catch (e) {
+                    console.error('select update failed:', e);
+                    try { await interaction.reply({ content: 'パネルの更新に失敗しました。', flags: 64 }); } catch (e2) {}
+                }
+            } catch (e) {
+                console.error('sched select handler error:', e);
+                try { await interaction.reply({ content: '選択処理中にエラーが発生しました。', flags: 64 }); } catch (e2) {}
+            }
+            return;
         }
 
         if (interaction.isModalSubmit && interaction.customId && interaction.customId.startsWith('sched:create')) {
@@ -100,6 +231,58 @@ client.on('interactionCreate', async (interaction) => {
             } catch (err) {
                 console.error('modal submit error:', err);
                 try { await interaction.reply({ content: 'スケジュール作成に失敗しました。', flags: 64 }); } catch (e) {}
+            }
+            return;
+        }
+        // Handle edit modal submit: sched:edit:modal:<id>
+        if (interaction.isModalSubmit && interaction.customId && interaction.customId.startsWith('sched:edit:modal')) {
+            try {
+                const parts = interaction.customId.split(':');
+                const sid = parts[2];
+                const title = interaction.fields.getTextInputValue('title');
+                const datetimeRaw = interaction.fields.getTextInputValue('datetime');
+                const description = interaction.fields.getTextInputValue('description') || '';
+                let dt = new Date(datetimeRaw);
+                if (isNaN(dt.getTime())) dt = new Date(datetimeRaw.replace(' ', 'T'));
+                if (isNaN(dt.getTime())) {
+                    try { await interaction.reply({ content: '無効な日時形式です。', flags: 64 }); } catch (e) {}
+                    return;
+                }
+                const { updateSchedule } = await import('./utils/scheduleStore.mjs');
+                const res = await updateSchedule(sid, { title, datetime: dt.toISOString(), description });
+                if (!res || !res.ok) {
+                    try { await interaction.reply({ content: '更新に失敗しました。', flags: 64 }); } catch (e) {}
+                    return;
+                }
+                // Attempt to update the panel message in recent messages
+                try {
+                    const { listSchedules } = await import('./utils/scheduleStore.mjs');
+                    const schedules = await listSchedules(interaction.guildId);
+                    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
+                    const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
+                    const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
+                    const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').setOptions(...(schedules && schedules.length ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : []));
+                    const selectRow = new ActionRowBuilder().addComponents(select);
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
+                    );
+                    const editRow = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
+                        new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
+                    );
+                    // find a recent panel message and edit it
+                    try {
+                        const recent = await interaction.channel.messages.fetch({ limit: 50 });
+                        const panelMsg = recent.find(m => m.embeds && m.embeds[0] && m.embeds[0].title === '🧭 スケジュール管理パネル');
+                        if (panelMsg) await panelMsg.edit({ embeds: [embed], components: [selectRow, row, editRow] });
+                    } catch (e) { console.warn('panel refresh after edit failed:', e); }
+                } catch (e) { console.error('post-edit panel update failed:', e); }
+
+                try { await interaction.reply({ content: '✅ スケジュールを更新しました。', flags: 64 }); } catch (e) {}
+            } catch (err) {
+                console.error('edit modal submit error:', err);
+                try { await interaction.reply({ content: '更新に失敗しました。', flags: 64 }); } catch (e) {}
             }
             return;
         }

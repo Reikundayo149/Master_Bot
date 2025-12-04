@@ -65,12 +65,24 @@ export default {
         const all = await listSchedules(interaction.guildId);
         const listText = (!all || all.length === 0) ? 'スケジュールは登録されていません。' : all.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
         const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
+        const select = new StringSelectMenuBuilder()
+          .setCustomId('sched:select')
+          .setPlaceholder('スケジュールを選択して編集／削除')
+          .setOptions(
+            ...(all && all.length ? all.slice(0, 25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [])
+          );
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
         );
-        await safeSend({ embeds: [embed], components: [row], flags: 64 });
+        const selectRow = new ActionRowBuilder().addComponents(select);
+        // Buttons for edit/delete (initially disabled until a selection is made)
+        const editRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
+          new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
+        );
+        await safeSend({ embeds: [embed], components: [selectRow, row, editRow], flags: 64 });
         return;
       }
 
@@ -80,8 +92,33 @@ export default {
           await safeSend({ content: 'このサーバーのスケジュールはありません。', flags: 64 });
           return;
         }
-          const lines = all.slice(0, 10).map(s => `• **${s.title}** — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`);
-        const embed = new EmbedBuilder().setTitle('📅 スケジュール一覧').setDescription(lines.join('\n'));
+        // Build a fixed-width table for easier scanning. Show index, short-id, date, title.
+        const slice = all.slice(0, 25);
+        // Determine running timezone for clarity
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const rows = [];
+        // Columns: No | ShortID | Date | Title
+        const noW = 3;
+        const idW = 10;
+        const dateW = 20;
+        const titleW = 40;
+        const headerLabel = `日時 (${tz})`;
+        const header = ` ${'No'.padEnd(noW)} | ${'ShortID'.padEnd(idW)} | ${headerLabel.padEnd(dateW)} | ${'タイトル'.padEnd(titleW)}`;
+        rows.push(header);
+        rows.push('-'.repeat(header.length));
+        slice.forEach((s, idx) => {
+          const no = String(idx + 1).padEnd(noW);
+          const short = (s.id || '').slice(0,8).padEnd(idW);
+          // include timezone abbreviation where possible; keep width constrained
+          const dt = new Date(s.datetime);
+          const dateStr = dt.toLocaleString();
+          const date = (dateStr + ` (${tz})`).padEnd(dateW).slice(0, dateW);
+          const title = (s.title || '').replace(/\n/g, ' ').slice(0, titleW).padEnd(titleW);
+          rows.push(` ${no} | ${short} | ${date} | ${title}`);
+        });
+        const footerNote = '\n※ テーブル中の ShortID は内部IDの先頭8文字です。詳細表示/削除は `/schedule view <ID>` `/schedule delete <ID>` で、ShortID でもマッチします。';
+        const embed = new EmbedBuilder().setTitle('📅 スケジュール一覧').setDescription('```
+' + rows.join('\n') + '```' + footerNote);
         await safeSend({ embeds: [embed], flags: 64 });
         return;
       }
