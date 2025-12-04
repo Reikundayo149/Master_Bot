@@ -80,12 +80,20 @@ client.on('interactionCreate', async (interaction) => {
                             new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
                             new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
                         );
-                        // interaction.update edits the message that had the buttons
+                        // Try to ACK then edit the original message; fallback to ephemeral reply
                         try {
-                            await interaction.update({ embeds: [embed], components: [row] });
-                        } catch (updErr) {
-                            // If update fails (e.g., interaction expired), fallback to ephemeral reply
-                            console.warn('パネル更新に失敗しました、フォールバックします:', updErr);
+                            try { if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate(); } catch (e) {}
+                            if (interaction.message && typeof interaction.message.edit === 'function') {
+                                await interaction.message.edit({ embeds: [embed], components: [row] });
+                            } else {
+                                // If no original message, attempt update (may fail) then fallback
+                                try { await interaction.update({ embeds: [embed], components: [row] }); } catch (updErr) {
+                                    console.warn('interaction.update failed during sched:list:', updErr);
+                                    try { await interaction.reply({ content: '一覧の更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {}
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('パネル更新に失敗しました、フォールバックします:', err);
                             try { await interaction.reply({ content: '一覧の更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {}
                         }
                     } catch (e) {
@@ -155,7 +163,17 @@ client.on('interactionCreate', async (interaction) => {
                                 new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
                                 new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
                             );
-                            try { await interaction.update({ embeds: [embed], components: (selectRow ? [selectRow, row, editRow] : [row, editRow]) }); } catch (updErr) { try { await interaction.reply({ content: '削除しましたが、パネル更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {} }
+                            try {
+                                try { if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate(); } catch (e) {}
+                                if (interaction.message && typeof interaction.message.edit === 'function') {
+                                    await interaction.message.edit({ embeds: [embed], components: (selectRow ? [selectRow, row, editRow] : [row, editRow]) });
+                                } else {
+                                    try { await interaction.update({ embeds: [embed], components: (selectRow ? [selectRow, row, editRow] : [row, editRow]) }); } catch (updErr) { try { await interaction.reply({ content: '削除しましたが、パネル更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {} }
+                                }
+                            } catch (err) {
+                                console.warn('パネル更新に失敗しました、フォールバックします:', err);
+                                try { await interaction.reply({ content: '削除しましたが、パネル更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {}
+                            }
                         } catch (e) {
                             console.error('after-delete update failed:', e);
                         }
@@ -200,15 +218,20 @@ client.on('interactionCreate', async (interaction) => {
                     new ButtonBuilder().setCustomId(`sched:edit:${s.id}`).setLabel('編集').setStyle(ButtonStyle.Success),
                     new ButtonBuilder().setCustomId(`sched:delete:${s.id}`).setLabel('削除').setStyle(ButtonStyle.Danger),
                 );
-                try {
-                    const comps = [];
-                    if (interaction.message && Array.isArray(interaction.message.components) && interaction.message.components[0]) comps.push(interaction.message.components[0]);
-                    comps.push(row, controlRow);
-                    await interaction.update({ embeds: [embed], components: comps });
-                } catch (e) {
-                    console.error('select update failed:', e);
-                    try { await interaction.reply({ content: 'パネルの更新に失敗しました。', flags: 64 }); } catch (e2) {}
-                }
+                    try {
+                        try { if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate(); } catch (e) {}
+                        const comps = [];
+                        if (interaction.message && Array.isArray(interaction.message.components) && interaction.message.components[0]) comps.push(interaction.message.components[0]);
+                        comps.push(row, controlRow);
+                        if (interaction.message && typeof interaction.message.edit === 'function') {
+                            await interaction.message.edit({ embeds: [embed], components: comps });
+                        } else {
+                            try { await interaction.update({ embeds: [embed], components: comps }); } catch (e) { console.error('select update failed:', e); try { await interaction.reply({ content: 'パネルの更新に失敗しました。', flags: 64 }); } catch (e2) {} }
+                        }
+                    } catch (err) {
+                        console.error('select update failed:', err);
+                        try { await interaction.reply({ content: 'パネルの更新に失敗しました。', flags: 64 }); } catch (e2) {}
+                    }
             } catch (e) {
                 console.error('sched select handler error:', e);
                 try { await interaction.reply({ content: '選択処理中にエラーが発生しました。', flags: 64 }); } catch (e2) {}
@@ -292,7 +315,11 @@ client.on('interactionCreate', async (interaction) => {
                             const comps = [];
                             if (selectRow) comps.push(selectRow);
                             comps.push(row, editRow);
-                            await panelMsg.edit({ embeds: [embed], components: comps });
+                            try {
+                                await panelMsg.edit({ embeds: [embed], components: comps });
+                            } catch (e) {
+                                console.warn('panelMsg.edit failed:', e);
+                            }
                         }
                     } catch (e) { console.warn('panel refresh after edit failed:', e); }
                 } catch (e) { console.error('post-edit panel update failed:', e); }
