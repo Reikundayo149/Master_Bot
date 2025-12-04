@@ -1,10 +1,12 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { createSchedule, listSchedules, getSchedule, deleteSchedule } from '../utils/scheduleStore.mjs';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('schedule')
     .setDescription('スケジュール管理')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false)
     .addSubcommand(sub => sub.setName('create').setDescription('スケジュールを作成します')
       .addStringOption(o => o.setName('title').setDescription('タイトル').setRequired(true))
       .addStringOption(o => o.setName('datetime').setDescription('日時（ISO or YYYY-MM-DD HH:MM）').setRequired(true))
