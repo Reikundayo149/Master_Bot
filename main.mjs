@@ -204,13 +204,45 @@ if (!process.env.DISCORD_TOKEN) {
 }
 
 (async () => {
-	await loadCommands();
-	console.log('🔄 Discord に接続中...');
-	client.login(process.env.DISCORD_TOKEN)
-		.catch(error => {
-			console.error('❌ ログインに失敗しました:', error);
-			process.exit(1);
-		});
+    // Ensure `client.commands` collection exists and load command modules from the `commands` directory.
+    // Defines `loadCommands` here if it was accidentally removed.
+    async function loadCommands() {
+        client.commands = new Collection();
+        const commandsPath = path.join(process.cwd(), 'commands');
+        if (!fs.existsSync(commandsPath)) {
+            console.warn('⚠️ commands ディレクトリが見つかりません:', commandsPath);
+            return;
+        }
+        const files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.mjs'));
+        for (const file of files) {
+            try {
+                const full = path.join(commandsPath, file);
+                const mod = await import(pathToFileURL(full).href);
+                const cmd = mod.default || mod;
+                if (cmd && cmd.data && cmd.data.name) {
+                    client.commands.set(cmd.data.name, cmd);
+                    console.log(`✅ コマンドをロードしました: ${cmd.data.name}`);
+                } else {
+                    console.warn('⚠️ コマンドが正しい構造ではありません:', file);
+                }
+            } catch (err) {
+                console.error('コマンドの読み込みに失敗しました:', file, err);
+            }
+        }
+    }
+
+    // Load commands then login
+    try {
+        await loadCommands();
+    } catch (err) {
+        console.error('loadCommands 実行中にエラーが発生しました:', err);
+    }
+    console.log('🔄 Discord に接続中...');
+    client.login(process.env.DISCORD_TOKEN)
+        .catch(error => {
+            console.error('❌ ログインに失敗しました:', error);
+            process.exit(1);
+        });
 })();
 
 // Express Webサーバーの設定（Render用）
