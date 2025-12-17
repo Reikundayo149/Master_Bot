@@ -149,7 +149,14 @@ client.on('interactionCreate', async (interaction) => {
                             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
                             const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
                             const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
-                            const selectOptions = (schedules && schedules.length) ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [];
+                            const selectOptions = (schedules && schedules.length) ? schedules.slice(0,25).map(s => {
+                                const short = (s.id || '').slice(0,8);
+                                const maxLabel = 100 - (short.length + 3);
+                                const title = (s.title || '').slice(0, Math.max(0, maxLabel));
+                                const label = `[${short}] ${title}`.slice(0, 100);
+                                const desc = (s.description || '').slice(0,100) || new Date(s.datetime).toLocaleString();
+                                return { label, description: desc, value: s.id };
+                            }) : [];
                             let selectRow = null;
                             if (selectOptions.length > 0) {
                                 const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').addOptions(...selectOptions);
@@ -293,7 +300,14 @@ client.on('interactionCreate', async (interaction) => {
                     const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
                     const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
                     const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
-                            const selectOptions = (schedules && schedules.length) ? schedules.slice(0,25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [];
+                            const selectOptions = (schedules && schedules.length) ? schedules.slice(0,25).map(s => {
+                                const short = (s.id || '').slice(0,8);
+                                const maxLabel = 100 - (short.length + 3);
+                                const title = (s.title || '').slice(0, Math.max(0, maxLabel));
+                                const label = `[${short}] ${title}`.slice(0, 100);
+                                const desc = (s.description || '').slice(0,100) || new Date(s.datetime).toLocaleString();
+                                return { label, description: desc, value: s.id };
+                            }) : [];
                             let selectRow = null;
                             if (selectOptions.length > 0) {
                                 const select = new StringSelectMenuBuilder().setCustomId('sched:select').setPlaceholder('スケジュールを選択して編集／削除').addOptions(...selectOptions);

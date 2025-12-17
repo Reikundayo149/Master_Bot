@@ -1,13 +1,16 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
-const SCHEDULE_FILE = path.join(DATA_DIR, 'schedules.json');
+// Allow overriding the schedules file path via env var so hosts can mount persistent storage.
+const SCHEDULE_FILE = process.env.SCHEDULES_FILE || path.join(DATA_DIR, 'schedules.json');
 
 async function ensureFile() {
 	try {
-		await fs.mkdir(DATA_DIR, { recursive: true });
+		const dir = path.dirname(SCHEDULE_FILE);
+		await fs.mkdir(dir, { recursive: true });
 		try {
 			await fs.access(SCHEDULE_FILE);
 		} catch (e) {
@@ -34,7 +37,21 @@ async function readAll() {
 
 async function writeAll(arr) {
 	await ensureFile();
-	await fs.writeFile(SCHEDULE_FILE, JSON.stringify(arr, null, 2), 'utf8');
+	const tmp = `${SCHEDULE_FILE}.tmp`;
+	const bak = `${SCHEDULE_FILE}.bak`;
+	const payload = JSON.stringify(arr, null, 2);
+	// create a backup of existing file if present
+	try {
+		if (fsSync.existsSync(SCHEDULE_FILE)) {
+			await fs.copyFile(SCHEDULE_FILE, bak);
+		}
+	} catch (e) {
+		// ignore backup errors
+		console.warn('scheduleStore: backup failed', e);
+	}
+	// write atomically: write tmp then rename
+	await fs.writeFile(tmp, payload, 'utf8');
+	await fs.rename(tmp, SCHEDULE_FILE);
 }
 
 export async function listSchedules(guildId) {

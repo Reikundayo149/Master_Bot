@@ -85,7 +85,15 @@ export default {
         const listText = (!all || all.length === 0) ? 'スケジュールは登録されていません。' : all.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
         const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
         const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = await import('discord.js');
-        const options = (all && all.length) ? all.slice(0, 25).map(s => ({ label: s.title.slice(0,100), description: (s.description||'').slice(0,100) || new Date(s.datetime).toLocaleString(), value: s.id })) : [];
+        const options = (all && all.length) ? all.slice(0, 25).map(s => {
+          const short = (s.id || '').slice(0, 8);
+          // reserve space for [short] and a space; label max 100 chars
+          const maxLabel = 100 - (short.length + 3);
+          const title = (s.title || '').slice(0, Math.max(0, maxLabel));
+          const label = `[${short}] ${title}`.slice(0, 100);
+          const desc = (s.description || '').slice(0, 100) || new Date(s.datetime).toLocaleString();
+          return { label, description: desc, value: s.id };
+        }) : [];
         let selectRow = null;
         if (options.length > 0) {
           const select = new StringSelectMenuBuilder()
