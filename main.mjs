@@ -73,21 +73,50 @@ client.on('interactionCreate', async (interaction) => {
                     try {
                         const { listSchedules } = await import('./utils/scheduleStore.mjs');
                         const schedules = await listSchedules(interaction.guildId);
-                        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = await import('discord.js');
+                        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } = await import('discord.js');
                         const listText = (!schedules || schedules.length === 0) ? 'スケジュールは登録されていません。' : schedules.slice(0,10).map(s => `• ${s.title} — ${new Date(s.datetime).toLocaleString()} (ID: ${s.id})`).join('\n');
                         const embed = new EmbedBuilder().setTitle('🧭 スケジュール管理パネル').setDescription(listText).setTimestamp();
+                        
+                        // Build select menu options
+                        const selectOptions = (schedules && schedules.length) ? schedules.slice(0, 25).map(s => {
+                            const short = (s.id || '').slice(0, 8);
+                            const maxLabel = 100 - (short.length + 3);
+                            const title = (s.title || '').slice(0, Math.max(0, maxLabel));
+                            const label = `[${short}] ${title}`.slice(0, 100);
+                            const desc = (s.description || '').slice(0, 100) || new Date(s.datetime).toLocaleString();
+                            return { label, description: desc, value: s.id };
+                        }) : [];
+                        
+                        let selectRow = null;
+                        if (selectOptions.length > 0) {
+                            const select = new StringSelectMenuBuilder()
+                                .setCustomId('sched:select')
+                                .setPlaceholder('スケジュールを選択して編集／削除')
+                                .addOptions(...selectOptions);
+                            selectRow = new ActionRowBuilder().addComponents(select);
+                        }
+                        
                         const row = new ActionRowBuilder().addComponents(
                             new ButtonBuilder().setCustomId('sched:create').setLabel('スケジュール作成').setStyle(ButtonStyle.Primary),
                             new ButtonBuilder().setCustomId('sched:list').setLabel('一覧を更新').setStyle(ButtonStyle.Secondary),
                         );
+                        const editRow = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId('sched:edit:noop').setLabel('編集').setStyle(ButtonStyle.Success).setDisabled(true),
+                            new ButtonBuilder().setCustomId('sched:delete:noop').setLabel('削除').setStyle(ButtonStyle.Danger).setDisabled(true),
+                        );
+                        
+                        const components = [];
+                        if (selectRow) components.push(selectRow);
+                        components.push(row, editRow);
+                        
                         // Try to ACK then edit the original message; fallback to ephemeral reply
                         try {
                             try { if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate(); } catch (e) {}
                             if (interaction.message && typeof interaction.message.edit === 'function') {
-                                await interaction.message.edit({ embeds: [embed], components: [row] });
+                                await interaction.message.edit({ embeds: [embed], components });
                             } else {
                                 // If no original message, attempt update (may fail) then fallback
-                                try { await interaction.update({ embeds: [embed], components: [row] }); } catch (updErr) {
+                                try { await interaction.update({ embeds: [embed], components }); } catch (updErr) {
                                     console.warn('interaction.update failed during sched:list:', updErr);
                                     try { await interaction.reply({ content: '一覧の更新に失敗しました。再度 /schedule panel を実行してください。', flags: 64 }); } catch (e) {}
                                 }
