@@ -1,7 +1,6 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 // Allow overriding the schedules file path via env var so hosts can mount persistent storage.
@@ -76,13 +75,23 @@ export async function getSchedule(id) {
 
 export async function createSchedule({ guildId, title, datetime, description, creatorId }) {
 	const all = await readAll();
-	const id = randomUUID();
+	const dt = new Date(datetime);
+	// Format date as YYYYMMDD
+	const year = String(dt.getFullYear());
+	const month = String(dt.getMonth() + 1).padStart(2, '0');
+	const day = String(dt.getDate()).padStart(2, '0');
+	const dateStr = `${year}${month}${day}`;
+	
+	// Count schedules with the same date
+	const sameDateCount = all.filter(s => s.id.startsWith(dateStr)).length;
+	const id = sameDateCount === 0 ? dateStr : `${dateStr}_${sameDateCount + 1}`;
+	
 	const schedule = {
 		id,
 		guildId: String(guildId || ''),
 		title: String(title || 'Untitled'),
 		description: description || '',
-		datetime: new Date(datetime).toISOString(),
+		datetime: dt.toISOString(),
 		creatorId: String(creatorId || ''),
 		attendees: [],
 		createdAt: new Date().toISOString(),

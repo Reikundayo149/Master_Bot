@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { createSchedule, listSchedules, getSchedule, deleteSchedule } from '../utils/scheduleStore.mjs';
+import { getScheduleCreatorRole, setScheduleCreatorRole, removeScheduleCreatorRole } from '../utils/roleConfig.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -22,6 +23,13 @@ export default {
     .addSubcommand(sub =>
       sub.setName('delete').setDescription('スケジュールを削除します')
         .addStringOption(o => o.setName('id').setDescription('スケジュールID').setRequired(true))
+    )
+    .addSubcommand(sub =>
+      sub.setName('setrole').setDescription('スケジュール作成可能ロールを設定します（管理者のみ）')
+        .addRoleOption(o => o.setName('role').setDescription('スケジュール作成可能ロール').setRequired(true))
+    )
+    .addSubcommand(sub =>
+      sub.setName('removerole').setDescription('スケジュール作成可能ロールを削除します（管理者のみ）')
     ),
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
@@ -31,28 +39,23 @@ export default {
         return await interaction.reply(payload);
       } catch (err) {
         console.error('safeSend reply/editReply failed:', err);
-        // Try to send the full payload to the channel (including embeds/components) as a fallback
-        try {
-          if (interaction.channel && typeof interaction.channel.send === 'function') {
-            return await interaction.channel.send(payload);
-          }
-        } catch (chErr) {
-          console.error('チャネル送信にも失敗しました (payload):', chErr);
-        }
-        // Final fallback: send a simple text indicating failure
-        try {
-          const text = payload.content || (payload.embeds ? '（埋め込みメッセージ）' : 'メッセージ');
-          return await interaction.channel?.send?.(text);
-        } catch (chErr2) {
-          console.error('チャネル送信にも失敗しました (text):', chErr2);
-        }
       }
     };
 
-    try { await interaction.deferReply({ flags: 64 }); } catch (e) {}
+    try { await interaction.deferReply(); } catch (e) {}
 
     try {
       if (sub === 'create') {
+        // Check permissions: Admin or has the specific role
+        const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+        const creatorRole = await getScheduleCreatorRole(interaction.guildId);
+        const hasRole = creatorRole && interaction.member.roles.cache.has(creatorRole);
+        
+        if (!isAdmin && !hasRole) {
+          await safeSend({ content: '❌ スケジュール作成権限がありません。管理者またはスケジュール作成可能ロールが必要です。' });
+          return;
+        }
+        
         const title = interaction.options.getString('title');
         const datetimeRaw = interaction.options.getString('datetime');
         const desc = interaction.options.getString('description') || '';
@@ -63,7 +66,7 @@ export default {
           dt = new Date(datetimeRaw.replace(' ', 'T'));
         }
         if (isNaN(dt.getTime())) {
-          await safeSend({ content: '無効な日時形式です。ISO または `YYYY-MM-DD HH:MM` の形式で指定してください。', flags: 64 });
+          await safeSend({ content: '無効な日時形式です。ISO または `YYYY-MM-DD HH:MM` の形式で指定してください。' });
           return;
         }
         const schedule = await createSchedule({ guildId: interaction.guildId, title, datetime: dt.toISOString(), description: desc, creatorId: interaction.user.id });
@@ -75,7 +78,7 @@ export default {
             { name: 'ID', value: schedule.id },
           )
           .setTimestamp();
-        await safeSend({ embeds: [embed], flags: 64 });
+        await safeSend({ embeds: [embed] });
         return;
       }
 
@@ -114,14 +117,14 @@ export default {
         const components = [];
         if (selectRow) components.push(selectRow);
         components.push(row, editRow);
-        await safeSend({ embeds: [embed], components, flags: 64 });
+        await safeSend({ embeds: [embed], components });
         return;
       }
 
       if (sub === 'list') {
         const all = await listSchedules(interaction.guildId);
         if (!all || all.length === 0) {
-          await safeSend({ content: 'このサーバーのスケジュールはありません。', flags: 64 });
+          await safeSend({ content: 'このサーバーのスケジュールはありません。' });
           return;
         }
         // Build a fixed-width table for easier scanning. Show index, short-id, date, title.
@@ -150,7 +153,7 @@ export default {
         });
         const footerNote = '\n※ テーブル中の ShortID は内部IDの先頭8文字です。詳細表示/削除は `/schedule view <ID>` `/schedule delete <ID>` で、ShortID でもマッチします。';
         const embed = new EmbedBuilder().setTitle('📅 スケジュール一覧').setDescription('```\n' + rows.join('\n') + '\n```' + footerNote);
-        await safeSend({ embeds: [embed], flags: 64 });
+        await safeSend({ embeds: [embed] });
         return;
       }
 
@@ -158,7 +161,7 @@ export default {
         const id = interaction.options.getString('id');
         const s = await getSchedule(id);
         if (!s || s.guildId !== interaction.guildId) {
-          await safeSend({ content: 'スケジュールが見つかりません。', flags: 64 });
+          await safeSend({ content: 'スケジュールが見つかりません。' });
           return;
         }
         const embed = new EmbedBuilder()
@@ -171,7 +174,7 @@ export default {
             { name: 'ID', value: s.id, inline: false },
           )
           .setTimestamp(new Date(s.createdAt || s.datetime));
-        await safeSend({ embeds: [embed], flags: 64 });
+        await safeSend({ embeds: [embed] });
         return;
       }
 
@@ -179,20 +182,47 @@ export default {
         const id = interaction.options.getString('id');
         const s = await getSchedule(id);
         if (!s || s.guildId !== interaction.guildId) {
-          await safeSend({ content: 'スケジュールが見つかりません。', flags: 64 });
+          await safeSend({ content: 'スケジュールが見つかりません。' });
           return;
         }
         const ok = await deleteSchedule(id);
         if (ok) {
-          await safeSend({ content: '✅ スケジュールを削除しました。', flags: 64 });
+          await safeSend({ content: '✅ スケジュールを削除しました。' });
         } else {
-          await safeSend({ content: '❌ スケジュールの削除に失敗しました。', flags: 64 });
+          await safeSend({ content: '❌ スケジュールの削除に失敗しました。' });
         }
+        return;
+      }
+
+      if (sub === 'setrole') {
+        // Only admins can set the role
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          await safeSend({ content: '❌ このコマンドは管理者のみが使用できます。' });
+          return;
+        }
+        const role = interaction.options.getRole('role');
+        await setScheduleCreatorRole(interaction.guildId, role.id);
+        const embed = new EmbedBuilder()
+          .setTitle('✅ スケジュール作成ロールを設定しました')
+          .addFields({ name: 'ロール', value: `<@&${role.id}> (${role.name})` })
+          .setTimestamp();
+        await safeSend({ embeds: [embed] });
+        return;
+      }
+
+      if (sub === 'removerole') {
+        // Only admins can remove the role
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          await safeSend({ content: '❌ このコマンドは管理者のみが使用できます。' });
+          return;
+        }
+        await removeScheduleCreatorRole(interaction.guildId);
+        await safeSend({ content: '✅ スケジュール作成ロールを削除しました。管理者のみがスケジュールを作成できるようになりました。' });
         return;
       }
     } catch (err) {
       console.error('schedule command error:', err);
-      await safeSend({ content: 'コマンド実行中にエラーが発生しました。', flags: 64 });
+      await safeSend({ content: 'コマンド実行中にエラーが発生しました。' });
     }
   }
 };

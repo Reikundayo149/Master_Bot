@@ -233,7 +233,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 const { getSchedule } = await import('./utils/scheduleStore.mjs');
                 const s = await getSchedule(sid);
-                if (!s) {
+                if (!s || s.guildId !== interaction.guildId) {
                     try { await interaction.reply({ content: 'スケジュールが見つかりません。', flags: 64 }); } catch (e) {}
                     return;
                 }
