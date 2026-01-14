@@ -34,8 +34,7 @@ export async function createEventInNotion(scheduleData) {
         },
         Date: {
           date: {
-            start: new Date(datetime).toISOString().split('T')[0],
-            start_time: new Date(datetime).toISOString().split('T')[1]?.substring(0, 5),
+            start: new Date(datetime).toISOString(),
           },
         },
         Description: {
