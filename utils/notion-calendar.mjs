@@ -7,7 +7,8 @@ const notion = new Client({
   auth: process.env.NOTION_TOKEN,
 });
 
-const DATABASE_ID = process.env.NOTION_DATABASE_ID;
+const SCHEDULE_DATABASE_ID = process.env.NOTION_SCHEDULE_DATABASE_ID;
+const LOG_DATABASE_ID = process.env.NOTION_LOG_DATABASE_ID;
 
 /**
  * Notion Database にスケジュールを作成
@@ -20,7 +21,7 @@ export async function createEventInNotion(scheduleData) {
 
     const response = await notion.pages.create({
       parent: {
-        database_id: DATABASE_ID,
+        database_id: SCHEDULE_DATABASE_ID,
       },
       properties: {
         名前: {
@@ -68,12 +69,22 @@ export async function createEventInNotion(scheduleData) {
     });
 
     console.log('✅ Notion にスケジュールを作成しました:', response.id);
+    
+    // ログに記録
+    await logActionToNotion({
+      action: 'SCHEDULE_CREATED',
+      title: `スケジュール作成: ${title}`,
+      guildId,
+      userId: creatorId,
+      details: `タイトル: ${title}, 日時: ${datetime}`,
+    });
+    
     return response;
   } catch (error) {
     console.error('❌ Notion スケジュール作成エラー:', error);
     throw error;
   }
-}
+}SCHEDULE_
 
 /**
  * Notion Database からスケジュールを一覧取得
@@ -131,6 +142,13 @@ export async function deleteEventFromNotion(pageId) {
     });
 
     console.log('✅ Notion からスケジュールを削除しました:', pageId);
+    
+    // ログに記録
+    await logActionToNotion({
+      action: 'SCHEDULE_DELETED',
+      title: `スケジュール削除: ${pageId}`,
+      details: `ページID: ${pageId}`,
+    });
   } catch (error) {
     console.error('❌ Notion スケジュール削除エラー:', error);
     throw error;
@@ -149,11 +167,87 @@ export async function findEventInNotion(guildId, title) {
     const found = schedules.find(
       (s) => s.title.toLowerCase() === title.toLowerCase()
     );
-    return found || null;
+/**
+ * Notionのログデータベースにアクションログを記録
+ * @param {Object} logData - ログデータ
+ * @returns {Promise<Object>} 作成されたページ
+ */
+export async function logActionToNotion(logData) {
+  try {
+    const { action, title, guildId = '', userId = '', details = '' } = logData;
+
+    const response = await notion.pages.create({
+      parent: {
+        database_id: LOG_DATABASE_ID,
+      },
+      properties: {
+        名前: {
+          title: [
+            {
+              text: {
+                content: title || action,
+              },
+            },
+          ],
+        },
+        Timestamp: {
+          date: {
+            start: new Date().toISOString(),
+          },
+        },
+        Action: {
+          rich_text: [
+            {
+              text: {
+                content: action,
+              },
+            },
+          ],
+        },
+        User_ID: {
+          rich_text: [
+            {
+              text: {
+                content: userId,
+              },
+            },
+          ],
+        },
+        Guild_ID: {
+          rich_text: [
+            {
+              text: {
+                content: guildId,
+              },
+            },
+          ],
+        },
+        Details: {
+          rich_text: [
+            {
+              text: {
+                content: details,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    console.log('✅ ログを記録しました:', response.id);
+    return response;
   } catch (error) {
-    console.error('❌ Notion スケジュール検索エラー:', error);
-    throw error;
+    console.error('❌ Notionログ記録エラー:', error);
+    // ログ記録の失敗は致命的ではないため、スロー しない
   }
+}
+
+export default {
+  createEventInNotion,
+  listEventsFromNotion,
+  deleteEventFromNotion,
+  findEventInNotion,
+  logActionTo
 }
 
 export default {
