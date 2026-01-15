@@ -8,6 +8,11 @@ const notion = new Client({
   auth: process.env.NOTION_TOKEN,
 });
 
+// Startup diagnostics to verify Notion SDK and env wiring
+console.log('[Notion SDK] databases keys:', Object.keys(notion.databases || {}));
+console.log('[Notion SDK] databases.query typeof:', typeof notion.databases?.query);
+console.log('[Notion SDK] SCHEDULE_DATABASE_ID:', SCHEDULE_DATABASE_ID);
+
 const SCHEDULE_DATABASE_ID = process.env.NOTION_SCHEDULE_DATABASE_ID;
 const SYNC_INTERVAL = (process.env.NOTION_SYNC_INTERVAL || 30) * 1000; // 環境変数から秒単位で取得し、ミリ秒に変換
 

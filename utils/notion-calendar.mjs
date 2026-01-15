@@ -7,6 +7,11 @@ const notion = new Client({
   auth: process.env.NOTION_TOKEN,
 });
 
+// Startup diagnostics to verify Notion SDK and env wiring
+console.log('[Notion SDK] calendars.databases keys:', Object.keys(notion.databases || {}));
+console.log('[Notion SDK] calendars.databases.query typeof:', typeof notion.databases?.query);
+console.log('[Notion SDK] LOG_DATABASE_ID:', LOG_DATABASE_ID);
+
 const SCHEDULE_DATABASE_ID = process.env.NOTION_SCHEDULE_DATABASE_ID;
 const LOG_DATABASE_ID = process.env.NOTION_LOG_DATABASE_ID;
 
