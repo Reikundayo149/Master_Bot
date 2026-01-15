@@ -84,7 +84,7 @@ export async function createEventInNotion(scheduleData) {
     console.error('❌ Notion スケジュール作成エラー:', error);
     throw error;
   }
-}SCHEDULE_
+}
 
 /**
  * Notion Database からスケジュールを一覧取得
@@ -94,7 +94,7 @@ export async function createEventInNotion(scheduleData) {
 export async function listEventsFromNotion(guildId) {
   try {
     const response = await notion.databases.query({
-      database_id: DATABASE_ID,
+      database_id: SCHEDULE_DATABASE_ID,
       filter: {
         property: 'Guild_ID',
         rich_text: {
@@ -167,6 +167,13 @@ export async function findEventInNotion(guildId, title) {
     const found = schedules.find(
       (s) => s.title.toLowerCase() === title.toLowerCase()
     );
+    return found || null;
+  } catch (error) {
+    console.error('❌ Notion スケジュール検索エラー:', error);
+    throw error;
+  }
+}
+
 /**
  * Notionのログデータベースにアクションログを記録
  * @param {Object} logData - ログデータ
@@ -247,12 +254,5 @@ export default {
   listEventsFromNotion,
   deleteEventFromNotion,
   findEventInNotion,
-  logActionTo
-}
-
-export default {
-  createEventInNotion,
-  listEventsFromNotion,
-  deleteEventFromNotion,
-  findEventInNotion,
+  logActionToNotion,
 };
