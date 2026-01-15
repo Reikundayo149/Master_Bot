@@ -73,7 +73,7 @@ export async function getSchedule(id) {
 	return null;
 }
 
-export async function createSchedule({ guildId, title, datetime, description, creatorId }) {
+export async function createSchedule({ guildId, title, datetime, description, creatorId, notionPageId, lastSyncTime }) {
 	const all = await readAll();
 	const dt = new Date(datetime);
 	// Format date as YYYYMMDD
@@ -95,6 +95,8 @@ export async function createSchedule({ guildId, title, datetime, description, cr
 		creatorId: String(creatorId || ''),
 		attendees: [],
 		createdAt: new Date().toISOString(),
+		notionPageId: notionPageId || null,
+		lastSyncTime: lastSyncTime || null,
 	};
 	all.push(schedule);
 	await writeAll(all);

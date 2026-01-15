@@ -70,20 +70,32 @@ export default {
           await safeSend({ content: '無効な日時形式です。ISO または `YYYY-MM-DD HH:MM` の形式で指定してください。' });
           return;
         }
-        const schedule = await createSchedule({ guildId: interaction.guildId, title, datetime: dt.toISOString(), description: desc, creatorId: interaction.user.id });
         
-        // Notion に同期
+        // Notion に同期してページIDを取得
+        let notionPageId = null;
         try {
-          await createEventInNotion({
+          const notionResponse = await createEventInNotion({
             title,
             datetime: dt.toISOString(),
             description: desc,
             guildId: interaction.guildId,
             creatorId: interaction.user.id,
           });
+          notionPageId = notionResponse?.id || null;
         } catch (notionError) {
           console.error('❌ Notion 同期エラー:', notionError.message);
         }
+        
+        // ローカルDBに保存（NotionページIDも含む）
+        const schedule = await createSchedule({ 
+          guildId: interaction.guildId, 
+          title, 
+          datetime: dt.toISOString(), 
+          description: desc, 
+          creatorId: interaction.user.id,
+          notionPageId,
+          lastSyncTime: new Date().toISOString(),
+        });
         
         const embed = new EmbedBuilder()
           .setTitle('✅ スケジュールを作成しました')

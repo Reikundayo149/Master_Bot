@@ -5,6 +5,7 @@ dotenv.config();
 
 const notion = new Client({
   auth: process.env.NOTION_TOKEN,
+  notionVersion: '2022-06-28', // 現在のAPIバージョン（後で2025-09-03に移行可能）
 });
 
 const SCHEDULE_DATABASE_ID = process.env.NOTION_SCHEDULE_DATABASE_ID;
