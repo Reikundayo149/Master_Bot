@@ -1,7 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { createSchedule, listSchedules, getSchedule, deleteSchedule } from '../utils/scheduleStore.mjs';
 import { getScheduleCreatorRole, setScheduleCreatorRole, removeScheduleCreatorRole } from '../utils/roleConfig.mjs';
-import { createEventInNotion, listEventsFromNotion, deleteEventFromNotion } from '../utils/notion-calendar.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -71,30 +70,13 @@ export default {
           return;
         }
         
-        // Notion に同期してページIDを取得
-        let notionPageId = null;
-        try {
-          const notionResponse = await createEventInNotion({
-            title,
-            datetime: dt.toISOString(),
-            description: desc,
-            guildId: interaction.guildId,
-            creatorId: interaction.user.id,
-          });
-          notionPageId = notionResponse?.id || null;
-        } catch (notionError) {
-          console.error('❌ Notion 同期エラー:', notionError.message);
-        }
-        
-        // ローカルDBに保存（NotionページIDも含む）
+        // ローカルDBに保存
         const schedule = await createSchedule({ 
           guildId: interaction.guildId, 
           title, 
           datetime: dt.toISOString(), 
           description: desc, 
           creatorId: interaction.user.id,
-          notionPageId,
-          lastSyncTime: new Date().toISOString(),
         });
         
         const embed = new EmbedBuilder()
@@ -214,16 +196,6 @@ export default {
         }
         const ok = await deleteSchedule(id);
         if (ok) {
-          // Notion から同期削除を試みる
-          try {
-            const notionSchedules = await listEventsFromNotion(interaction.guildId);
-            const notionItem = notionSchedules.find((item) => item.title === s.title);
-            if (notionItem) {
-              await deleteEventFromNotion(notionItem.id);
-            }
-          } catch (notionError) {
-            console.error('❌ Notion 削除同期エラー:', notionError.message);
-          }
           await safeSend({ content: '✅ スケジュールを削除しました。' });
         } else {
           await safeSend({ content: '❌ スケジュールの削除に失敗しました。' });
