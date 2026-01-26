@@ -68,7 +68,7 @@ export default {
 };
 
 async function handleSet(interaction) {
-  const content = interaction.options.getString('content');
+  const content = interaction.options.getString('content').replace(/\\n/g, '\n');
   const interval = interaction.options.getInteger('interval') || 60;
   const color = interaction.options.getString('color') || '#5865F2';
   const channelId = interaction.channelId;
@@ -109,9 +109,10 @@ async function handleSet(interaction) {
       }
 
       // 新しいメッセージを送信
+      const data = bottomPinnedMessages.get(channelId);
       const embed = new EmbedBuilder()
-        .setDescription(content)
-        .setColor(color)
+        .setDescription(data ? data.content : content)
+        .setColor(data ? data.color : color)
         .setTimestamp()
         .setFooter({ text: '📌 このメッセージは自動的に最下層に更新されます' });
 
@@ -231,7 +232,7 @@ async function handleUpdate(interaction) {
       );
     }
 
-    // 新しいメッセージを送信
+    // 新しいメッセージを送信（既に改行変換済みのcontentを使用）
     const embed = new EmbedBuilder()
       .setDescription(data.content)
       .setColor(data.color)
@@ -277,7 +278,7 @@ export async function handleNewMessage(message) {
       );
     }
 
-    // 新しいメッセージを送信
+    // 新しいメッセージを送信（既に改行変換済みのcontentを使用）
     const embed = new EmbedBuilder()
       .setDescription(data.content)
       .setColor(data.color)
