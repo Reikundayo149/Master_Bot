@@ -109,19 +109,18 @@ async function handleSet(interaction) {
       }
 
       // 新しいメッセージを送信
-      const data = bottomPinnedMessages.get(channelId);
+      const savedData = bottomPinnedMessages.get(channelId);
       const embed = new EmbedBuilder()
-        .setDescription(data ? data.content : content)
-        .setColor(data ? data.color : color)
+        .setDescription(savedData ? savedData.content : content)
+        .setColor(savedData ? savedData.color : color)
         .setTimestamp()
         .setFooter({ text: '📌 このメッセージは自動的に最下層に更新されます' });
 
       lastMessage = await interaction.channel.send({ embeds: [embed] });
 
       // 保存されている参照を更新
-      const data = bottomPinnedMessages.get(channelId);
-      if (data) {
-        data.lastMessage = lastMessage;
+      if (savedData) {
+        savedData.lastMessage = lastMessage;
       }
 
       console.log(`✅ チャンネル ${channelId} のボトムピンメッセージを更新しました`);
