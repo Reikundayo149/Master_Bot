@@ -9,6 +9,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 // Schedule and Azure DB integrations removed per user request.
 // Schedule-specific imports removed to disable schedule features.
+import { handleNewMessage as handleBottomPinMessage } from './commands/pin-message.mjs';
 
 // .envファイルから環境変数を読み込み
 dotenv.config();
@@ -36,7 +37,10 @@ async function handleClientReady() {
 client.on('clientReady', handleClientReady);
 
 // メッセージが送信されたときの処理（従来のテキストコマンド対応）
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
+	// ボトムピンメッセージのリアルタイム更新処理
+	await handleBottomPinMessage(message);
+
 	if (message.author.bot) return;
 	if (message.content.toLowerCase() === 'ping') {
 		message.reply('🏓 pong!');
