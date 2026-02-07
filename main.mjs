@@ -39,6 +39,11 @@ client.on('clientReady', handleClientReady);
 // コマンドプレフィックス設定（環境変数で変更可能）
 const PREFIX = process.env.COMMAND_PREFIX || '!';
 
+// コマンドエイリアス（短縮形）の定義
+const COMMAND_ALIASES = {
+	'chcreate': 'create-channel',
+};
+
 // メッセージが送信されたときの処理（従来のテキストコマンド対応）
 client.on('messageCreate', async (message) => {
 	// ボトムピンメッセージのリアルタイム更新処理
@@ -49,7 +54,12 @@ client.on('messageCreate', async (message) => {
 	// テキストコマンド処理
 	if (message.content.startsWith(PREFIX)) {
 		const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
-		const commandName = args.shift().toLowerCase();
+		let commandName = args.shift().toLowerCase();
+
+		// エイリアスを実際のコマンド名に変換
+		if (COMMAND_ALIASES[commandName]) {
+			commandName = COMMAND_ALIASES[commandName];
+		}
 
 		// コマンドが存在するか確認
 		if (!client.commands || !client.commands.has(commandName)) {
