@@ -42,8 +42,18 @@ const rest = new REST({ version: '10' }).setToken(token);
     console.log('⚙️ コマンドを登録中...');
     console.log(`Prepared ${commands.length} command(s) for registration:`, commands.map(c => c.name));
     if (guildId) {
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-      console.log('✅ ギルドコマンドを登録しました');
+      // 複数のギルドIDに対応
+      const guildIds = guildId.split(',').map(id => id.trim());
+      console.log(`Registering commands for ${guildIds.length} guild(s)...`);
+      
+      for (const id of guildIds) {
+        try {
+          await rest.put(Routes.applicationGuildCommands(clientId, id), { body: commands });
+          console.log(`✅ ギルド ${id} にコマンドを登録しました`);
+        } catch (error) {
+          console.error(`❌ ギルド ${id} へのコマンド登録に失敗:`, error.message);
+        }
+      }
     } else {
       await rest.put(Routes.applicationCommands(clientId), { body: commands });
       console.log('✅ グローバルコマンドを登録しました');
