@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { getCategoryForChannel } from '../utils/channelCreateConfig.mjs';
 
 export default {
   data: new SlashCommandBuilder()
@@ -83,6 +84,16 @@ export default {
     try {
       await interaction.deferReply();
 
+      // コマンド実行チャンネルから自動カテゴリーを取得
+      const configuredCategoryId = getCategoryForChannel(interaction.channelId);
+      if (configuredCategoryId && !category) {
+        const configuredCategory = interaction.guild.channels.cache.get(configuredCategoryId);
+        if (configuredCategory && configuredCategory.type === ChannelType.GuildCategory) {
+          category = configuredCategory;
+          console.log(`📂 自動カテゴリー選択: ${category.name} (ID: ${category.id})`);
+        }
+      }
+
       let channelTypeEnum;
       let channelData = {
         name: channelName,
@@ -109,6 +120,16 @@ export default {
       // カテゴリが指定されている場合
       if (category) {
         channelData.parent = category.id;
+        
+        // カテゴリー内の最下層に配置するため、positionを計算
+        const channelsInCategory = interaction.guild.channels.cache.filter(
+          ch => ch.parentId === category.id && ch.type !== ChannelType.GuildCategory
+        );
+        
+        if (channelsInCategory.size > 0) {
+          const maxPosition = Math.max(...channelsInCategory.map(ch => ch.position));
+          channelData.position = maxPosition + 1;
+        }
       }
 
       // チャンネルを作成
