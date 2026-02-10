@@ -36,12 +36,22 @@ if (fs.existsSync(commandsPath)) {
 }
 
 const rest = new REST({ version: '10' }).setToken(token);
+const shouldClearGlobal = String(process.env.CLEAR_GLOBAL_COMMANDS || '').toLowerCase() === '1'
+  || String(process.env.CLEAR_GLOBAL_COMMANDS || '').toLowerCase() === 'true';
 
 (async () => {
   try {
     console.log('⚙️ コマンドを登録中...');
     console.log(`Prepared ${commands.length} command(s) for registration:`, commands.map(c => c.name));
     if (guildId) {
+      if (shouldClearGlobal) {
+        try {
+          await rest.put(Routes.applicationCommands(clientId), { body: [] });
+          console.log('🧹 グローバルコマンドを削除しました（重複防止）');
+        } catch (error) {
+          console.error('❌ グローバルコマンドの削除に失敗:', error.message);
+        }
+      }
       // 複数のギルドIDに対応
       const guildIds = guildId.split(',').map(id => id.trim());
       console.log(`Registering commands for ${guildIds.length} guild(s)...`);
