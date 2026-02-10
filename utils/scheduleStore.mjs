@@ -82,9 +82,23 @@ export async function createSchedule({ guildId, title, datetime, description, cr
 	const day = String(dt.getDate()).padStart(2, '0');
 	const dateStr = `${year}${month}${day}`;
 	
-	// Count schedules with the same date
-	const sameDateCount = all.filter(s => s.id.startsWith(dateStr)).length;
-	const id = sameDateCount === 0 ? dateStr : `${dateStr}_${sameDateCount + 1}`;
+	// Pick the next available ID suffix for the same date to avoid duplicates.
+	let maxIndex = 0;
+	for (const s of all) {
+		if (!s || !s.id) continue;
+		const sid = String(s.id);
+		if (sid === dateStr) {
+			maxIndex = Math.max(maxIndex, 1);
+			continue;
+		}
+		if (sid.startsWith(`${dateStr}_`)) {
+			const suffix = Number(sid.slice(dateStr.length + 1));
+			if (Number.isInteger(suffix) && suffix > 0) {
+				maxIndex = Math.max(maxIndex, suffix);
+			}
+		}
+	}
+	const id = maxIndex === 0 ? dateStr : `${dateStr}_${maxIndex + 1}`;
 	
 	const schedule = {
 		id,
