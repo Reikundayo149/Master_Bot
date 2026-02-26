@@ -7,7 +7,6 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
-// Schedule and Azure DB integrations removed per user request.
 // Schedule-specific imports removed to disable schedule features.
 import { handleNewMessage as handleBottomPinMessage } from './commands/pin-message.mjs';
 
