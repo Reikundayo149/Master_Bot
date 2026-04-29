@@ -8,6 +8,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import { handleNewMessage as handleBottomPinMessage } from './commands/pin-message.mjs';
 import { handlePanelInteraction } from './handlers/panelHandler.mjs';
+import * as http from 'node:http';
 
 // .envファイルから環境変数を読み込み
 dotenv.config();
@@ -309,7 +310,6 @@ if (!process.env.DISCORD_TOKEN) {
             console.error('❌ ログインに失敗しました:', error);
             process.exit(1);
         });
-    import http from 'http';
 
     // Renderのポートスキャンをパスするための簡易サーバー
     http.createServer((req, res) => {
