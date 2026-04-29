@@ -25,10 +25,10 @@ const client = new Client({
 // Botが起動完了したときの処理
 let __clientReadyHandled = false;
 async function handleClientReady() {
-	if (__clientReadyHandled) return;
-	__clientReadyHandled = true;
-	console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
-	console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
+    if (__clientReadyHandled) return;
+    __clientReadyHandled = true;
+    console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
+    console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
 }
 
 // 新しいイベント名 'clientReady' に対応しつつ、互換性のため 'ready' も受け付ける
@@ -39,128 +39,128 @@ const PREFIX = process.env.COMMAND_PREFIX || '!';
 
 // コマンドエイリアス（短縮形）の定義
 const COMMAND_ALIASES = {
-	'chcreate': 'create-channel',
+    'chcreate': 'create-channel',
 };
 
 // メッセージが送信されたときの処理（従来のテキストコマンド対応）
 client.on('messageCreate', async (message) => {
-	// ボトムピンメッセージのリアルタイム更新処理
-	await handleBottomPinMessage(message);
+    // ボトムピンメッセージのリアルタイム更新処理
+    await handleBottomPinMessage(message);
 
-	if (message.author.bot) return;
+    if (message.author.bot) return;
 
-	// テキストコマンド処理
-	if (message.content.startsWith(PREFIX)) {
-		const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
-		let commandName = args.shift().toLowerCase();
+    // テキストコマンド処理
+    if (message.content.startsWith(PREFIX)) {
+        const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
+        let commandName = args.shift().toLowerCase();
 
-		// エイリアスを実際のコマンド名に変換
-		if (COMMAND_ALIASES[commandName]) {
-			commandName = COMMAND_ALIASES[commandName];
-		}
+        // エイリアスを実際のコマンド名に変換
+        if (COMMAND_ALIASES[commandName]) {
+            commandName = COMMAND_ALIASES[commandName];
+        }
 
-		// コマンドが存在するか確認
-		if (!client.commands || !client.commands.has(commandName)) {
-			// 旧式のpingコマンド互換性維持
-			if (commandName === 'ping' || message.content.toLowerCase() === 'ping') {
-				message.reply('🏓 pong!');
-				console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
-			}
-			return;
-		}
+        // コマンドが存在するか確認
+        if (!client.commands || !client.commands.has(commandName)) {
+            // 旧式のpingコマンド互換性維持
+            if (commandName === 'ping' || message.content.toLowerCase() === 'ping') {
+                message.reply('🏓 pong!');
+                console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
+            }
+            return;
+        }
 
-		const command = client.commands.get(commandName);
+        const command = client.commands.get(commandName);
 
-		try {
-			// スラッシュコマンド用のインタラクションをエミュレート
-			const fakeInteraction = {
-				commandName,
-				user: message.author,
-				member: message.member,
-				guild: message.guild,
-				channel: message.channel,
-				channelId: message.channelId,
-				guildId: message.guildId,
-				client: message.client,
-				deferred: false,
-				replied: false,
-				options: {
-					// 引数をパース（簡易版）
-					getString(name, required = false) {
-						const value = args.join(' ') || null;
-						if (required && !value) throw new Error(`必須パラメータ '${name}' が指定されていません`);
-						return value;
-					},
-					getChannel(name) {
-						const channelMention = args.find(arg => arg.startsWith('<#') && arg.endsWith('>'));
-						if (!channelMention) return null;
-						const channelId = channelMention.slice(2, -1);
-						return message.guild.channels.cache.get(channelId);
-					},
-					getUser(name) {
-						const userMention = args.find(arg => arg.startsWith('<@') && arg.endsWith('>'));
-						if (!userMention) return null;
-						const userId = userMention.replace(/[<@!>]/g, '');
-						return message.guild.members.cache.get(userId)?.user;
-					},
-					getMember(name) {
-						const userMention = args.find(arg => arg.startsWith('<@') && arg.endsWith('>'));
-						if (!userMention) return null;
-						const userId = userMention.replace(/[<@!>]/g, '');
-						return message.guild.members.cache.get(userId);
-					},
-				},
-				async reply(options) {
-					this.replied = true;
-					const content = typeof options === 'string' ? options : options.content;
-					const embeds = typeof options === 'object' ? options.embeds : undefined;
-					const ephemeral = typeof options === 'object' ? options.ephemeral : false;
-					
-					if (ephemeral) {
-						// ephemeralの場合はDMで送信を試みる
-						try {
-							await message.author.send({ content, embeds });
-							await message.react('✅');
-						} catch (e) {
-							await message.reply({ content: `(本来は非公開メッセージ)\n${content}`, embeds });
-						}
-					} else {
-						await message.reply({ content, embeds });
-					}
-				},
-				async deferReply() {
-					this.deferred = true;
-					await message.channel.sendTyping();
-				},
-				async editReply(options) {
-					const content = typeof options === 'string' ? options : options.content;
-					const embeds = typeof options === 'object' ? options.embeds : undefined;
-					await message.reply({ content, embeds });
-				},
-				async followUp(options) {
-					const content = typeof options === 'string' ? options : options.content;
-					const embeds = typeof options === 'object' ? options.embeds : undefined;
-					await message.channel.send({ content, embeds });
-				},
-			};
+        try {
+            // スラッシュコマンド用のインタラクションをエミュレート
+            const fakeInteraction = {
+                commandName,
+                user: message.author,
+                member: message.member,
+                guild: message.guild,
+                channel: message.channel,
+                channelId: message.channelId,
+                guildId: message.guildId,
+                client: message.client,
+                deferred: false,
+                replied: false,
+                options: {
+                    // 引数をパース（簡易版）
+                    getString(name, required = false) {
+                        const value = args.join(' ') || null;
+                        if (required && !value) throw new Error(`必須パラメータ '${name}' が指定されていません`);
+                        return value;
+                    },
+                    getChannel(name) {
+                        const channelMention = args.find(arg => arg.startsWith('<#') && arg.endsWith('>'));
+                        if (!channelMention) return null;
+                        const channelId = channelMention.slice(2, -1);
+                        return message.guild.channels.cache.get(channelId);
+                    },
+                    getUser(name) {
+                        const userMention = args.find(arg => arg.startsWith('<@') && arg.endsWith('>'));
+                        if (!userMention) return null;
+                        const userId = userMention.replace(/[<@!>]/g, '');
+                        return message.guild.members.cache.get(userId)?.user;
+                    },
+                    getMember(name) {
+                        const userMention = args.find(arg => arg.startsWith('<@') && arg.endsWith('>'));
+                        if (!userMention) return null;
+                        const userId = userMention.replace(/[<@!>]/g, '');
+                        return message.guild.members.cache.get(userId);
+                    },
+                },
+                async reply(options) {
+                    this.replied = true;
+                    const content = typeof options === 'string' ? options : options.content;
+                    const embeds = typeof options === 'object' ? options.embeds : undefined;
+                    const ephemeral = typeof options === 'object' ? options.ephemeral : false;
 
-			// コマンドを実行
-			await command.execute(fakeInteraction);
-			console.log(`📝 ${message.author.tag} がテキストコマンド ${PREFIX}${commandName} を使用`);
-		} catch (error) {
-			console.error(`テキストコマンド ${commandName} の実行中にエラー:`, error);
-			try {
-				const errorMsg = `❌ コマンドの実行中にエラーが発生しました: ${error.message}`;
-				await message.reply(errorMsg);
-			} catch (e) {
-				console.error('エラーメッセージの送信に失敗:', e);
-			}
-		}
-	} else if (message.content.toLowerCase() === 'ping') {
-		// プレフィックスなしのpingも互換性維持
-		message.reply('🏓 pong!');
-		console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
-	}
+                    if (ephemeral) {
+                        // ephemeralの場合はDMで送信を試みる
+                        try {
+                            await message.author.send({ content, embeds });
+                            await message.react('✅');
+                        } catch (e) {
+                            await message.reply({ content: `(本来は非公開メッセージ)\n${content}`, embeds });
+                        }
+                    } else {
+                        await message.reply({ content, embeds });
+                    }
+                },
+                async deferReply() {
+                    this.deferred = true;
+                    await message.channel.sendTyping();
+                },
+                async editReply(options) {
+                    const content = typeof options === 'string' ? options : options.content;
+                    const embeds = typeof options === 'object' ? options.embeds : undefined;
+                    await message.reply({ content, embeds });
+                },
+                async followUp(options) {
+                    const content = typeof options === 'string' ? options : options.content;
+                    const embeds = typeof options === 'object' ? options.embeds : undefined;
+                    await message.channel.send({ content, embeds });
+                },
+            };
+
+            // コマンドを実行
+            await command.execute(fakeInteraction);
+            console.log(`📝 ${message.author.tag} がテキストコマンド ${PREFIX}${commandName} を使用`);
+        } catch (error) {
+            console.error(`テキストコマンド ${commandName} の実行中にエラー:`, error);
+            try {
+                const errorMsg = `❌ コマンドの実行中にエラーが発生しました: ${error.message}`;
+                await message.reply(errorMsg);
+            } catch (e) {
+                console.error('エラーメッセージの送信に失敗:', e);
+            }
+        }
+    } else if (message.content.toLowerCase() === 'ping') {
+        // プレフィックスなしのpingも互換性維持
+        message.reply('🏓 pong!');
+        console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
+    }
 });
 
 // スラッシュコマンド（インタラクション）処理
@@ -188,7 +188,7 @@ client.on('interactionCreate', async (interaction) => {
                     console.warn('Unknown interaction when replying — ignored.');
                     return null;
                 }
-            } catch (e) {}
+            } catch (e) { }
             try {
                 if (interaction.deferred) {
                     return await interaction.editReply(options);
@@ -196,7 +196,7 @@ client.on('interactionCreate', async (interaction) => {
                 if (interaction.replied && origFollowUp) {
                     return await origFollowUp(options);
                 }
-            } catch (err2) {}
+            } catch (err2) { }
             throw err;
         }
     };
@@ -215,11 +215,11 @@ client.on('interactionCreate', async (interaction) => {
                         console.warn('Unknown interaction when followUp — ignored.');
                         return null;
                     }
-                } catch (e) {}
+                } catch (e) { }
                 try {
                     if (interaction.deferred) return await interaction.editReply(options);
                     if (interaction.replied) return await origFollowUp(options);
-                } catch (err2) {}
+                } catch (err2) { }
                 throw err;
             }
         };
@@ -253,20 +253,20 @@ client.on('interactionCreate', async (interaction) => {
 
 // エラーハンドリング
 client.on('error', (error) => {
-    console.error('❌ Discord クライアントエラー:', error);
+    console.error('❌ Discord クライアントエラー:', error);
 });
 
 // プロセス終了時の処理
 process.on('SIGINT', () => {
-    console.log('🛑 Botを終了しています...');
-    client.destroy();
-    process.exit(0);
+    console.log('🛑 Botを終了しています...');
+    client.destroy();
+    process.exit(0);
 });
 
 // Discord にログイン
 if (!process.env.DISCORD_TOKEN) {
-	console.error('❌ DISCORD_TOKEN が環境変数に設定されていません！');
-	process.exit(1);
+    console.error('❌ DISCORD_TOKEN が環境変数に設定されていません！');
+    process.exit(1);
 }
 
 (async () => {
@@ -309,4 +309,11 @@ if (!process.env.DISCORD_TOKEN) {
             console.error('❌ ログインに失敗しました:', error);
             process.exit(1);
         });
+    import http from 'http';
+
+    // Renderのポートスキャンをパスするための簡易サーバー
+    http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is running!');
+    }).listen(process.env.PORT || 3000);
 })();
